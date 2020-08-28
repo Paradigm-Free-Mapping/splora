@@ -1,0 +1,59 @@
+# -*- coding: utf-8 -*-
+"""Parser for phys2bids."""
+
+
+import argparse
+
+from low_rank_pfm import __version__
+
+
+def _get_parser():
+    """
+    Parse command line inputs for this function.
+
+    Returns
+    -------
+    parser.parse_args() : argparse dict
+
+    Notes
+    -----
+    # Argument parser follow template provided by RalphyZ.
+    # https://stackoverflow.com/a/43456577
+    """
+    parser = argparse.ArgumentParser()
+    optional = parser._action_groups.pop()
+    required = parser.add_argument_group('Required Argument:')
+    required.add_argument('-i', '--input',
+                          dest='data_filename',
+                          type=str,
+                          help='The name of the file containing fMRI data. ',
+                          required=True)
+    required.add_argument('-m', '--mask',
+                          dest='mask_filename',
+                          type=str,
+                          help='The name of the file containing the mask for '
+                               'the fMRI data. ',
+                          required=True)
+    required.add_argument('-tr',
+                          dest='tr',
+                          type=float,
+                          help='TR of the fMRI data acquisition.',
+                          required=True)
+    optional.add_argument('-te',
+                          dest='te',
+                          nargs='*',
+                          type=float,
+                          help='List with TE of the fMRI data acquisition.',
+                          default=[0])
+    optional.add_argument('-v', '--version', action='version',
+                          version=('%(prog)s ' + __version__))
+
+    parser._action_groups.append(optional)
+
+    return parser
+
+
+if __name__ == '__main__':
+    raise RuntimeError('low_rank_pfm/cli/run.py should not be run directly;\n'
+                       'Please `pip install` low_rank_pfm and use the '
+                       '`low_rank_pfm` command')
