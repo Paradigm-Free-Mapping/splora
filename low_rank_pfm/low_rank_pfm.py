@@ -49,7 +49,7 @@ def low_rank_pfm(data_filename, mask_filename, output_filename, tr, te=[0]):
     hrf_obj = HRFMatrix(TR=tr, nscans=int(data_masked.shape[0]), TE=te)
     hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
 
-    L, S = low_rank(data=data_masked, hrf=hrf_norm, proximal=proximal, rho=rho)
+    L, S = low_rank(data=data_masked, hrf=hrf_norm)
 
     # Debiasing
     S_deb, S_fitts = debiasing(x=hrf_norm, y=data_masked, beta=S)
