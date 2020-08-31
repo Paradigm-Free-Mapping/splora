@@ -15,7 +15,7 @@ def SoftThresh(x, p, is_low_rank=False):
     return(y)
 
 
-def low_rank(data, hrf, rho=0.9, noise=0, sim=0, maxiter=1000, miniter=10, vox_2_keep=0.3):
+def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3):
     """
     L+S reconstruction of undersampled dynamic MRI data using iterative
     soft-thresholding of singular values of L and soft-thresholding of
@@ -122,7 +122,7 @@ def low_rank(data, hrf, rho=0.9, noise=0, sim=0, maxiter=1000, miniter=10, vox_2
 
         non_noisy = St[St > 3*np.std(St)]
         mad = median_absolute_deviation(non_noisy)
-        print(non_noisy)
+        # print(non_noisy)
         print(f'Median: {np.median(non_noisy)} and MAD: {mad}')
         keep_idx = len(St[St > (np.median(non_noisy) + mad)])
         print(f'Keeping {keep_idx} eigenvalues...')
@@ -186,7 +186,7 @@ def low_rank(data, hrf, rho=0.9, noise=0, sim=0, maxiter=1000, miniter=10, vox_2
 
             # Low-rank update
             if(lambda_L != 0):
-                Ut, St, Vt = svd(YL+(1/cc)*y_YA, full_matrices=False,
+                Ut, St, Vt = svd(np.nan_to_num(YL+(1/cc)*y_YA), full_matrices=False,
                                  compute_uv=True, check_finite=True)
                 St = np.diag(SoftThresh(St, lambda_L/cc, is_low_rank=True))
                 LZ = np.dot(np.dot(Ut, St), Vt)
@@ -199,8 +199,9 @@ def low_rank(data, hrf, rho=0.9, noise=0, sim=0, maxiter=1000, miniter=10, vox_2
 
             # Sparse update
             # if(lambda_S != 0):
-            YSS = YS + (1/cc)*y_YA
-            SZ = SoftThresh(YSS, lambda_S/cc)
+            YSS = YS + (1 / cc) * y_YA
+
+            SZ = SoftThresh(YSS, lambda_S / cc)
             # else:
             #     S = np.zeros((S.shape))
             #     SZ = np.zeros((S.shape))
