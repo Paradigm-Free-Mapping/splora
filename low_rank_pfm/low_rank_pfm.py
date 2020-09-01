@@ -72,8 +72,6 @@ def low_rank_pfm(data_filename, mask_filename, output_filename, tr, te=[0], thr=
     # Debiasing
     S_deb, S_fitts = debiasing(x=hrf_norm, y=data_masked, beta=S, thr=thr)
 
-    breakpoint()
-
     print('Saving results...')
 
     # Save estimated fluctuations
