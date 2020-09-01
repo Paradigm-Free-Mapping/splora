@@ -34,6 +34,11 @@ def _get_parser():
                           help='The name of the file containing the mask for '
                                'the fMRI data. ',
                           required=True)
+    required.add_argument('-o', '--output',
+                          dest='output_filename',
+                          type=str,
+                          help='The name of the output file with no extension.',
+                          required=True)
     required.add_argument('-tr',
                           dest='tr',
                           type=float,

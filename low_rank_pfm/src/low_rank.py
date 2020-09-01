@@ -15,7 +15,7 @@ def SoftThresh(x, p, is_low_rank=False):
     return(y)
 
 
-def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3):
+def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1):
     """
     L+S reconstruction of undersampled dynamic MRI data using iterative
     soft-thresholding of singular values of L and soft-thresholding of
@@ -72,7 +72,7 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3):
     # lambda_S = noise_est * np.sqrt(2*np.log10(nt))
     # lambda_S = noise_est * np.sqrt(2*np.log10(nt) - np.log10(1 + 4 * np.log10(nt)))
 
-    for ii in range(2):
+    for ii in range(nruns):
 
         data[abs(data) < 1e-3] = 0
 
@@ -176,7 +176,7 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3):
         t[i] = 1
         convergence_criteria = 1
 
-        for i in range(100): #((i < 100)): #and ((MDIF[i] >= tol) or ncDIF)):
+        for i in range(maxiter): #((i < 100)): #and ((MDIF[i] >= tol) or ncDIF)):
             # data consistency gradient
             y_YA = data - YA
 
@@ -332,13 +332,13 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3):
             #                / np.linalg.norm(A.flatten()))
 
             # Force at least 10 itereations with no improvement
-            ii = np.min((i+1, 10)) - 1
+            ii = np.min((i+1, miniter)) - 1
             if (i-ii) == 0:
                 MDIF[i] = np.max(x_diff[i::-1])
             else:
                 MDIF[i] = np.max(x_diff[i:i-ii-1:-1])
 
-            if i > miniter and (ERR[i] - ERR[i-1]) < tol:
+            if i > (miniter - 1) and (ERR[i] - ERR[i-1]) < tol:
                 break
 
             # convergence_criteria = np.power((S - SO), 2).sum()/np.power(SO, 2).sum()

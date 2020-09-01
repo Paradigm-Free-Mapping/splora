@@ -10,7 +10,7 @@ from nilearn.image import load_img, new_img_like
 from low_rank_pfm.cli.run import _get_parser
 from low_rank_pfm.src.low_rank import low_rank
 from low_rank_pfm.src.hrf_matrix import HRFMatrix
-from low_rank_pfm.io import new_nii_like
+from low_rank_pfm.io import read_data, reshape_data
 
 
 def debiasing(x, y, beta):
@@ -45,10 +45,13 @@ def debiasing(x, y, beta):
 
 def low_rank_pfm(data_filename, mask_filename, output_filename, tr, te=[0]):
 
-    data_img = load_img(data_filename, dtype='float32')
-    mask_img = load_img(mask_filename, dtype='float32')
-    data_masked = apply_mask(data_img, mask_img)
-    # breakpoint()
+    # data_img = load_img(data_filename, dtype='float32')
+    # mask_img = load_img(mask_filename, dtype='float32')
+    # data_masked = apply_mask(data_img, mask_img)
+
+    data_masked, data_header, data_affine, dims, mask_idxs = read_data(data_filename,
+                                                                       mask_filename)
+
     # masker = NiftiMasker(mask_img=mask_filename, standardize=False)
     # data_masked = masker.fit_transform(data_filename)
     # masker.t_r = tr
@@ -61,31 +64,33 @@ def low_rank_pfm(data_filename, mask_filename, output_filename, tr, te=[0]):
     # Debiasing
     S_deb, S_fitts = debiasing(x=hrf_norm, y=data_masked, beta=S)
 
-    breakpoint()
-
+    # Save estimated fluctuations
     # masker.inverse_transform(L).to_filename(f'{output_filename}_fluc.nii.gz')
-    L_img = unmask(L, mask_img)
-    L_img.header.from_header(header=data_img.header)
+    # L_img = unmask(L, mask_img)
+    # L_img.header.from_header(header=data_img.header)
     # nii = new_img_like(ref_niimg=data_img, data=L_img, copy_header=True)
-    # L_nib = nib.Nifti1Image(L_img, affine=data_img.affine, header=data_img.header)
+    L_reshaped = reshape_data(L, dims, mask_idxs)
+    L_nib = nib.Nifti1Image(L_reshaped, affine=data_affine, header=data_header)
     # L_nii = new_nii_like(ref_img=data_img, data=L, affine=data_img.affine)
-    L_img.to_filename(f'{output_filename}_fluc.nii.gz')
+    L_nib.to_filename(f'{output_filename}_fluc.nii.gz')
 
     # masker.inverse_transform(S_deb).to_filename(f'{output_filename}_beta.nii.gz')
-    S_img = unmask(S_deb, mask_img)
-    S_img.header.from_header(header=data_img.header)
+    # S_img = unmask(S_deb, mask_img)
+    # S_img.header.from_header(header=data_img.header)
     # nii = new_img_like(ref_niimg=data_img, data=S_img, copy_header=True)
-    # S_nib = nib.Nifti1Image(S_img, affine=data_img.affine, header=data_img.header)
+    S_reshaped = reshape_data(S, dims, mask_idxs)
+    S_nib = nib.Nifti1Image(S_reshaped, affine=data_affine, header=data_header)
     # S_nii = new_nii_like(ref_img=data_img, data=S_deb, affine=data_img.affine)
-    S_img.to_filename(f'{output_filename}_beta.nii.gz')
+    S_nib.to_filename(f'{output_filename}_beta.nii.gz')
 
     # masker.inverse_transform(S_fitts).to_filename(f'{output_filename}_fitts.nii.gz')
-    S_fitts_img = unmask(S_fitts, mask_img)
-    S_fitts_img.header.from_header(header=data_img.header)
+    # S_fitts_img = unmask(S_fitts, mask_img)
+    # S_fitts_img.header.from_header(header=data_img.header)
     # nii = new_img_like(ref_niimg=data_img, data=S_fitts_img, copy_header=True)
-    # S_fitts_nib = nib.Nifti1Image(S_fitts_img, affine=data_img.affine, header=data_img.header)
+    S_fitts_reshaped = reshape_data(S_fitts, dims, mask_idxs)
+    S_fitts_nib = nib.Nifti1Image(S_fitts_reshaped, affine=data_affine, header=data_header)
     # S_fitts_nii = new_nii_like(ref_img=data_img, data=S_fitts, affine=data_img.affine)
-    S_fitts_img.to_filename(f'{output_filename}_fitts.nii.gz')
+    S_fitts_nib.to_filename(f'{output_filename}_fitts.nii.gz')
 
 
 def _main(argv=None):
