@@ -4,7 +4,16 @@ import numpy as np
 
 
 def read_data(data_filename, mask_filename):
+    """
+    Read files.
 
+    Args:
+        data_filename ([type]): [description]
+        mask_filename ([type]): [description]
+
+    Returns:
+        [type]: [description]
+    """
     data_img = nib.load(data_filename)
     data_header = data_img.header
     data = data_img.get_fdata()
@@ -21,7 +30,8 @@ def read_data(data_filename, mask_filename):
         data_masked = data * mask
 
     # Initiates data_restruct to make loop faster
-    data_restruct_temp = np.reshape(np.moveaxis(data_masked, -1, 0), (dims[-1], np.prod(data_img.shape[:-1])))
+    data_restruct_temp = np.reshape(np.moveaxis(data_masked, -1, 0),
+                                    (dims[-1], np.prod(data_img.shape[:-1])))
     mask_idxs = np.unique(np.nonzero(data_restruct_temp)[1])
     data_restruct = data_restruct_temp[:, mask_idxs]
 
@@ -29,7 +39,16 @@ def read_data(data_filename, mask_filename):
 
 
 def reshape_data(signal2d, dims, mask_idxs):
+    """
+    Reshape data from 2D to 4D.
+
+    Args:
+        signal2d ([type]): [description]
+        dims ([type]): [description]
+        mask_idxs ([type]): [description]
+    """
     signal4d = np.zeros((dims[0] * dims[1] * dims[2], signal2d.shape[0]))
+    idxs = 0
 
     # Merges signal on mask indices with blank image
     for i in range(dims[3]):
