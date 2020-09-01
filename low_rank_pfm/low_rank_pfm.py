@@ -48,7 +48,8 @@ def debiasing(x, y, beta, thr=1e-3):
     return(beta_out, fitts_out)
 
 
-def low_rank_pfm(data_filename, mask_filename, output_filename, tr, te=[0], thr=1e-3):
+def low_rank_pfm(data_filename, mask_filename, output_filename, tr, te=[0], thr=1e-3,
+                 lambda_weight=1.1):
     """[summary]
 
     Args:
@@ -66,7 +67,7 @@ def low_rank_pfm(data_filename, mask_filename, output_filename, tr, te=[0], thr=
     hrf_obj = HRFMatrix(TR=tr, nscans=int(data_masked.shape[0]), TE=te, has_integrator=False)
     hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
 
-    L, S = low_rank(data=data_masked, hrf=hrf_norm)
+    L, S = low_rank(data=data_masked, hrf=hrf_norm, lambda_weight=lambda_weight)
 
     # Debiasing
     S_deb, S_fitts = debiasing(x=hrf_norm, y=data_masked, beta=S, thr=thr)

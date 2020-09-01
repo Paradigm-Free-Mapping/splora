@@ -50,6 +50,16 @@ def _get_parser():
                           type=float,
                           help='List with TE of the fMRI data acquisition.',
                           default=[0])
+    optional.add_argument('-thr',
+                          dest='thr',
+                          type=float,
+                          help='Threshold to be used on debiasing step.',
+                          default=1e-3)
+    optional.add_argument('-l', '--lambda',
+                          dest='lambda_weight',
+                          type=float,
+                          help='Weight to multiply noise estimation for regularization.',
+                          default=1.1)
     optional.add_argument('-v', '--version', action='version',
                           version=('%(prog)s ' + __version__))
 

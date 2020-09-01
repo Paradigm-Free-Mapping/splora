@@ -15,7 +15,7 @@ def SoftThresh(x, p, is_low_rank=False):
     return(y)
 
 
-def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1):
+def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambda_weight=1.1):
     """
     L+S reconstruction of undersampled dynamic MRI data using iterative
     soft-thresholding of singular values of L and soft-thresholding of
@@ -115,7 +115,7 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1):
         #                      compute_uv=True, check_finite=True)
         St = np.diag(St)
         if l_iter == 0:
-            lambda_S = noise_est
+            lambda_S = noise_est * lambda_weight
         # else:
         #     _, cD1 = wavedec(data, 'db3', level=1, axis=0)
         #     lambda_S = stats.median_absolute_deviation(cD1) / 0.6745
