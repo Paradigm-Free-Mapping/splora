@@ -1,3 +1,4 @@
+"""I/O."""
 import nibabel as nib
 import numpy as np
 
@@ -6,7 +7,6 @@ def read_data(data_filename, mask_filename):
 
     data_img = nib.load(data_filename)
     data_header = data_img.header
-    data_affine = data_img.affine
     data = data_img.get_fdata()
     dims = data.shape
 
@@ -25,7 +25,7 @@ def read_data(data_filename, mask_filename):
     mask_idxs = np.unique(np.nonzero(data_restruct_temp)[1])
     data_restruct = data_restruct_temp[:, mask_idxs]
 
-    return data_restruct, data_header, data_affine, dims, mask_idxs
+    return data_restruct, data_header, dims, mask_idxs
 
 
 def reshape_data(signal2d, dims, mask_idxs):
