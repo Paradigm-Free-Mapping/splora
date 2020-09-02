@@ -8,11 +8,12 @@ import scipy as sci
 from low_rank_pfm.cli.run import _get_parser
 from low_rank_pfm.src.low_rank import low_rank
 from low_rank_pfm.src.hrf_matrix import HRFMatrix
-from low_rank_pfm.io import read_data, reshape_data
+from low_rank_pfm.io import read_data, reshape_data, update_history
 
 
 def debiasing(x, y, beta, thr=1e-3):
-    """[summary]
+    """
+    Debias beta estimates.
 
     Args:
         x ([type]): [description]
@@ -50,7 +51,8 @@ def debiasing(x, y, beta, thr=1e-3):
 
 def low_rank_pfm(data_filename, mask_filename, output_filename, tr, te=[0], thr=1e-3,
                  lambda_weight=1.1):
-    """[summary]
+    """
+    Low-rank PFM main function.
 
     Args:
         data_filename ([type]): [description]
@@ -60,6 +62,11 @@ def low_rank_pfm(data_filename, mask_filename, output_filename, tr, te=[0], thr=
         te (list, optional): [description]. Defaults to [0].
         thr ([type], optional): [description]. Defaults to 1e-3.
     """
+    te_str = str(te).strip('[]')
+    arguments = f'-i {data_filename} -m {mask_filename} -o {output_filename} -tr {tr} '
+    arguments += f'-te {te_str} -thr {thr} -l {lambda_weight}'
+    command_str = f'low_rank_pfm {arguments}'
+
     print('Reading data...')
     data_masked, data_header, dims, mask_idxs = read_data(data_filename, mask_filename)
     print('Data read.')
@@ -73,21 +80,29 @@ def low_rank_pfm(data_filename, mask_filename, output_filename, tr, te=[0], thr=
     S_deb, S_fitts = debiasing(x=hrf_norm, y=data_masked, beta=S, thr=thr)
 
     print('Saving results...')
-
     # Save estimated fluctuations
     L_reshaped = reshape_data(L, dims, mask_idxs)
     L_nib = nib.Nifti1Image(L_reshaped, None, header=data_header)
-    L_nib.to_filename(f'{output_filename}_fluc.nii.gz')
+    L_output_filename = f'{output_filename}_fluc.nii.gz'
+    L_nib.to_filename(L_output_filename)
 
     S_reshaped = reshape_data(S_deb, dims, mask_idxs)
     S_nib = nib.Nifti1Image(S_reshaped, None, header=data_header)
-    S_nib.to_filename(f'{output_filename}_beta.nii.gz')
+    S_output_filename = f'{output_filename}_beta.nii.gz'
+    S_nib.to_filename(S_output_filename)
 
     S_fitts_reshaped = reshape_data(S_fitts, dims, mask_idxs)
     S_fitts_nib = nib.Nifti1Image(S_fitts_reshaped, None, header=data_header)
-    S_fitts_nib.to_filename(f'{output_filename}_fitts.nii.gz')
-
+    S_fitts_output_filename = f'{output_filename}_fitts.nii.gz'
+    S_fitts_nib.to_filename(S_fitts_output_filename)
     print('Results saved.')
+
+    print('Updating file history...')
+    update_history(L_output_filename, command_str)
+    update_history(S_output_filename, command_str)
+    update_history(S_fitts_output_filename, command_str)
+    print('File history updated.')
+
     print('Low-Rank and Sparse PFM finished.')
 
 

@@ -1,6 +1,7 @@
 """I/O."""
 import nibabel as nib
 import numpy as np
+from subprocess import run
 
 
 def read_data(data_filename, mask_filename):
@@ -63,3 +64,15 @@ def reshape_data(signal2d, dims, mask_idxs):
     signal4d = np.reshape(signal4d, (dims[0], dims[1], dims[2], signal2d.shape[0]))
     del signal2d, idxs, dims, mask_idxs
     return(signal4d)
+
+
+def update_history(filename, command):
+    """
+    Update file history for 3dinfo.
+
+    Args:
+        filename ([type]): [description]
+        command ([type]): [description]
+    """
+    run(f'3dcopy {filename} {filename} -overwrite', shell=True)
+    run(f'3dNotes -h "{command}" {filename}', shell=True)
