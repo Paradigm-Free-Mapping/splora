@@ -15,7 +15,35 @@ def SoftThresh(x, p, is_low_rank=False):
     return(y)
 
 
-def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambda_weight=1.1):
+def proximal_operator_mixed_norm(y, lambda_val, rho_val=0.8, groups='space'):
+    # Division parameter of proximal operator
+    div = y / np.abs(y)
+    div[np.isnan(div)] = 0
+
+    # First parameter of proximal operator
+    p_one = np.maximum(np.zeros(y.shape), (np.abs(y) - lambda_val * rho_val))
+
+    # Second parameter of proximal operator
+    if groups == 'space':
+        foo = np.sum(np.maximum(np.zeros(y.shape), np.abs(y) - lambda_val * rho_val) ** 2, axis=1)
+        foo = foo.reshape(len(foo), 1)
+        foo = np.dot(foo, np.ones((1, y.shape[1])))
+    else:
+        foo = np.sum(np.maximum(np.zeros(y.shape), np.abs(y) - lambda_val * rho_val) ** 2, axis=0)
+        foo = foo.reshape(1, len(foo))
+        foo = np.dot(np.ones((y.shape[0], 1), foo))
+
+    p_two = np.maximum(np.zeros(y.shape),
+                       np.ones(y.shape) - lambda_val * (1 - rho_val) / np.sqrt(foo))
+
+    # Proximal operation
+    x = div * p_one * p_two
+
+    # Return result
+    return(x)
+
+
+def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambda_weight=1.1, group=0):
     """
     L+S reconstruction of undersampled dynamic MRI data using iterative
     soft-thresholding of singular values of L and soft-thresholding of
@@ -66,11 +94,11 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
     display = True
 
     # iterations
-    converged = False
     l_iter = 0
-
-    # lambda_S = noise_est * np.sqrt(2*np.log10(nt))
-    # lambda_S = noise_est * np.sqrt(2*np.log10(nt) - np.log10(1 + 4 * np.log10(nt)))
+    A = 0
+    lambda_S = 0
+    l_final = 0
+    keep_idx = 2
 
     for ii in range(nruns):
 
@@ -80,10 +108,7 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
 
         if l_iter == 0:
             A = np.dot(hrf, S) + L
-            A_lambda = np.dot(hrf, S)
-        # else:
-            # A = np.dot(hrf, S_deb) + L
-            # A_lambda = np.dot(hrf, S_deb)
+
         L_old = L.copy()
         YL = L.copy()
         YS = S.copy()
@@ -109,60 +134,28 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
 
         # if l_iter == 0:
         Ut, St, Vt = svd(data, full_matrices=False,
-                             compute_uv=True, check_finite=True)
-        # else:
-        #     Ut, St, Vt = svd(A, full_matrices=False,
-        #                      compute_uv=True, check_finite=True)
+                         compute_uv=True, check_finite=True)
+
         St = np.diag(St)
         if l_iter == 0:
             lambda_S = noise_est * lambda_weight
-        # else:
-        #     _, cD1 = wavedec(data, 'db3', level=1, axis=0)
-        #     lambda_S = stats.median_absolute_deviation(cD1) / 0.6745
 
-        non_noisy = St[St > 3*np.std(St)]
+        non_noisy = St[St > 3 * np.std(St)]
         mad = median_absolute_deviation(non_noisy)
-        # print(non_noisy)
+
         print(f'Median: {np.median(non_noisy)} and MAD: {mad}')
         keep_idx = len(St[St > (np.median(non_noisy) + mad)])
         print(f'Keeping {keep_idx} eigenvalues...')
-        # if np.diag(St)[keep_idx] != 0:
-        #     lambda_L = np.diag(St)[keep_idx] * 1.01
-        # else:
+
         lambda_L = np.diag(St)[keep_idx] * 1.01
         nv = np.ones((nvox, ))
 
-        # else:
-        #     # nv = np.sqrt(np.sum((A_lambda - data) ** 2, axis=0) / nt)
-        #     # if(abs(nv - noise_est).all() > tol):
-        #     #     lambda_S = lambda_S*noise_est / nv
-        #     # _, cD1 = wavedec(data, 'db3', level=1, axis=0)
-
-        #     # noise_est = stats.median_absolute_deviation(cD1) / 0.6745
-        #     # lambda_S = noise_est * 1.1
-        #     print(MSE_iter)
-        #     print(noise_est)
-        #     # if abs(ERR[i] - noise_est).all() > tol:
-        #     #     lambda_S = lambda_S * noise_est / MSE_iter
-
         nv_2_save[:, l_iter] = nv
-
-        # print(f'NV: {nv}')
-        # print(f'Lambda S: {lambda_S}')
-
         St[keep_idx:] = 0
-        # if l_iter > 0:
-        #     rho = rho*0.9995
-        #     print(f'Rho: {rho}')
-        # if rho <= 0.99:
-        #     break
-        # lambda_val = lambda_L/rho
-        # lambda_S = lambda_val * (1 - rho)
-        # print(f'Lambda: {lambda_S}')
 
         # Residue
         L2cost[i] = (1 / 2
-                    * np.linalg.norm(data.flatten() - A.flatten(), ord=2) ** 2)
+                     * np.linalg.norm(data.flatten() - A.flatten(), ord=2) ** 2)
         L1cost[i] = np.linalg.norm(S.flatten(), ord=1)
         Ls = svd(L, full_matrices=False, compute_uv=False)
         Ncost[i] = np.sum(Ls)
@@ -174,9 +167,8 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
         x_diff[i] = MDIF[i]
         ncDIF = 0
         t[i] = 1
-        convergence_criteria = 1
 
-        for i in range(maxiter): #((i < 100)): #and ((MDIF[i] >= tol) or ncDIF)):
+        for i in range(maxiter):
             # data consistency gradient
             y_YA = data - YA
 
@@ -186,26 +178,21 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
 
             # Low-rank update
             if(lambda_L != 0):
-                Ut, St, Vt = svd(np.nan_to_num(YL+(1/cc)*y_YA), full_matrices=False,
+                Ut, St, Vt = svd(np.nan_to_num(YL + (1 / cc) * y_YA), full_matrices=False,
                                  compute_uv=True, check_finite=True)
-                St = np.diag(SoftThresh(St, lambda_L/cc, is_low_rank=True))
+                St = np.diag(SoftThresh(St, lambda_L / cc, is_low_rank=True))
                 LZ = np.dot(np.dot(Ut, St), Vt)
             else:
                 LZ = np.zeros((L.shape))
                 YL = np.zeros((L.shape))
-            
-            # if i > 0 and abs(ERR[i] - noise_est).all() > tol:
-            #     lambda_S = lambda_S * noise_est / ERR[i]
 
             # Sparse update
-            # if(lambda_S != 0):
             YSS = YS + (1 / cc) * y_YA
 
-            SZ = SoftThresh(YSS, lambda_S / cc)
-            # else:
-            #     S = np.zeros((S.shape))
-            #     SZ = np.zeros((S.shape))
-            #     YS = np.zeros((S.shape))
+            if group == 0:
+                SZ = SoftThresh(YSS, lambda_S / cc)
+            else:
+                SZ = proximal_operator_mixed_norm(YSS, lambda_S / cc)
 
             SZ_YS = SZ - YS
             LZ_YL = LZ - YL
@@ -214,35 +201,33 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
 
             dA = AZ - AO
             dS = SZ - SO
-            dL = LZ-LO
+            dL = LZ - LO
 
             # Majorizer gap
             y_AZ = data - AZ
-            f_Z = .5*(np.dot(y_AZ.flatten().T, y_AZ.flatten()))
-            f_Y = .5*(np.dot(y_YA.flatten().T, y_YA.flatten()))
+            f_Z = .5 * (np.dot(y_AZ.flatten().T, y_AZ.flatten()))
+            f_Y = .5 * (np.dot(y_YA.flatten().T, y_YA.flatten()))
             QdZY = ((cc / 2 * np.linalg.norm(LZ_YL.flatten(), ord=2) ** 2)
                     + (cc / 2 * np.linalg.norm(SZ_YS.flatten(), ord=2) ** 2))
             zeta[i] = (f_Y - np.real(np.dot(y_YA.flatten().T, SZ_YS.flatten())
-                    + np.dot(y_YA.flatten().T, LZ_YL.flatten()))
-                    + QdZY - f_Z)
+                       + np.dot(y_YA.flatten().T, LZ_YL.flatten()))
+                       + QdZY - f_Z)
 
             LZs = svd(LZ, full_matrices=False,
                       compute_uv=False, check_finite=True)
             COSTCZ = (f_Z + lambda_L * sum(LZs) + np.mean(lambda_S)
-                    * np.linalg.norm(SZ.flatten(), ord=1))
+                      * np.linalg.norm(SZ.flatten(), ord=1))
 
             if(COSTCZ < COST[i]):
                 S = SZ
                 L = LZ
                 A = AZ
-                ncDIF = 0
                 COSTC = COSTCZ
                 mu[i] = 1
             else:
                 S = SO
                 L = LO
                 A = AO
-                ncDIF = 0
                 COSTC = COST[i]
                 mu[i] = 0
 
@@ -290,11 +275,11 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
                 LZ_L = 0
                 AZ_A = 0
 
-            t[i+1] = (1 + np.sqrt(1 + 4 * t[i] ** 2)) / 2  # Combination parameter
+            t[i + 1] = (1 + np.sqrt(1 + 4 * t[i] ** 2)) / 2  # Combination parameter
 
-            t1 = (t[i] - 1) / t[i+1]
-            t2 = t[i] / t[i+1]
-            t3 = (t[i] / t[i+1]) * (eta[i] - 1)
+            t1 = (t[i] - 1) / t[i + 1]
+            t2 = t[i] / t[i + 1]
+            t3 = (t[i] / t[i + 1]) * (eta[i] - 1)
 
             YS = S + t1 * (S_SO) + t2 * (SZ_S) + t3 * (SZ_YS)
             YL = L + t1 * (L_LO) + t2 * (LZ_L) + t3 * (LZ_YL)
@@ -313,7 +298,7 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
                          compute_uv=False, check_finite=True)
                 Ncost[i] = np.sum(Ls)
                 COST[i] = L2cost[i] + lambda_L * Ncost[i] + np.mean(lambda_S) * L1cost[i]
-                ERR[i] = np.linalg.norm(data.flatten() - A.flatten(), ord=2)/nt
+                ERR[i] = np.linalg.norm(data.flatten() - A.flatten(), ord=2) / nt
                 # Print some numbers
                 if display:
                     print(f'mfista-va i={i}, cost={COST[i]:.9f},'
@@ -328,24 +313,17 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
                     print(f'delta={delta[i-1]:.3f}, zeta={zeta[i-1]:.3f}, '
                           f'eta={eta[i-1]:.3f}  \n')
 
-            # x_diff[i+1] = (np.linalg.norm(A.flatten() - AO.flatten())
-            #                / np.linalg.norm(A.flatten()))
-
             # Force at least 10 itereations with no improvement
-            ii = np.min((i+1, miniter)) - 1
-            if (i-ii) == 0:
+            ii = np.min((i + 1, miniter)) - 1
+            if (i - ii) == 0:
                 MDIF[i] = np.max(x_diff[i::-1])
             else:
-                MDIF[i] = np.max(x_diff[i:i-ii-1:-1])
+                MDIF[i] = np.max(x_diff[i:(i - ii - 1):-1])
 
             if i > (miniter - 1) and (ERR[i] - ERR[i-1]) < tol:
                 break
 
-            # convergence_criteria = np.power((S - SO), 2).sum()/np.power(SO, 2).sum()
         # END WHILE
-
-        # deb_out = debiasing(hrf, data, S)
-        # S_deb = deb_out['beta']
 
         MSE_iter = np.min(np.sqrt(np.sum(abs(((np.dot(hrf, S) + L) - data)) ** 2, axis=0)) / nt)
 
@@ -356,14 +334,12 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
         else:
             MSE = np.hstack((MSE, MSE_iter))
             if MSE[l_iter] < tol:
-                converged = True
                 print('FISTA has converged!!!')
 
         if (l_iter > 0) and (MSE[l_iter - 1] == MSE[l_iter]):
             counter += 1
 
-        if (l_iter > 0) and (np.abs(MSE[l_iter-1] - MSE[l_iter]) <= tol) and (MSE[l_iter - 1] > MSE[l_iter]):
-            converged = True
+        if (l_iter > 0) and (np.abs(MSE[l_iter - 1] - MSE[l_iter]) <= tol) and (MSE[l_iter - 1] > MSE[l_iter]):
             print('MSE not improving!!!')
             break
 
@@ -371,7 +347,6 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
             counter += 1
 
         if counter == 5:
-            converged = True
             print('MSE not improving!!!')
             break
 
@@ -380,31 +355,6 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
         else:
             l_final = L + L_old
             # break
-
-        # plt.figure(figsize=(16, 9))
-        # plt.plot(orig_data, label='Sim', color='#000000', linewidth=2)
-        # plt.plot(noise[:, 0], label='Sim L', color='#246d9e', linewidth=1.2)
-        # plt.plot(l_final[:, 0], label='L', color='#38fcae',
-        #          linestyle='-', linewidth=0.7)
-        # plt.plot(sim[:, 0], label='Sim S', color='#ba5c29', linewidth=1.2)
-        # plt.plot(S[:, 0], label='S', color='red',
-        #          linestyle='-', linewidth=0.7)
-        # plt.legend()
-        # plt.show()
-        # plt.clf()
-
-        # # Y
-        # _, Y_St, _ = svd(data, full_matrices=False, compute_uv=True, check_finite=True)
-        # fig = plt.figure(figsize=(16, 9))
-        # plt.plot(np.diag(Y_St)[:20], '-o', label='Y')
-        # _, YL_St, _ = svd(data-L, full_matrices=False,
-        #                   compute_uv=True, check_finite=True)
-        # plt.plot(np.diag(YL_St)[:20], '-o', label='Y-L')
-        # _, YHS_St, _ = svd(data-np.dot(hrf, S), full_matrices=False,
-        #                    compute_uv=True, check_finite=True)
-        # plt.plot(np.diag(YHS_St)[:20], '-o', label='Y-HS')
-        # plt.savefig(f'y_eigvals_{l_iter}.png', dpi=300)
-        # plt.close(fig)
 
         l_iter += 1
         if l_iter == 0:
@@ -418,30 +368,8 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
     S[global_fluc, :] = 0
 
     # Return eigen vectors we keep.
-    Ut, St, Vt = svd(np.nan_to_num(l_final), full_matrices=False, compute_uv=True, check_finite=True)
+    Ut, St, Vt = svd(np.nan_to_num(l_final), full_matrices=False, compute_uv=True,
+                     check_finite=True)
     eig_vecs = Ut[:, :keep_idx]
 
     return(l_final, S, eig_vecs)
-
-    # L=reshape(L,nx,ny,nt);
-    # S=reshape(param.W'*WS,nx,ny,nt);
-
-    # recon.im=L+S;
-    # recon.L=L;
-    # recon.S=S;
-    # recon.WS=WS;
-    # recon.lambda_S = param.lambda_S;
-    # recon.lambda_L = param.lambda_L;
-    # recon.err=ERR;
-    # recon.diff=x_diff;
-    # recon.nite=i-1;
-    # recon.L2=L2cost;
-    # recon.L1=L1cost;
-    # recon.N=Ncost;
-    # recon.cost=COST;
-    # recon.tim=TIM;
-    # recon.c=c;
-    # recon.mu=mu;
-    # recon.eta=eta;
-    # recon.zeta=zeta;
-    # recon.delta=delta;
