@@ -147,8 +147,8 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
 
         nv_2_save[:, l_iter] = nv
 
-        print(f'NV: {nv}')
-        print(f'Lambda S: {lambda_S}')
+        # print(f'NV: {nv}')
+        # print(f'Lambda S: {lambda_S}')
 
         St[keep_idx:] = 0
         # if l_iter > 0:
@@ -417,7 +417,11 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
     global_fluc = np.where(S_nonzero > nvox * vox_2_keep)[0]
     S[global_fluc, :] = 0
 
-    return(l_final, S)
+    # Return eigen vectors we keep.
+    Ut, St, Vt = svd(np.nan_to_num(l_final), full_matrices=False, compute_uv=True, check_finite=True)
+    eig_vecs = Ut[:, :keep_idx]
+
+    return(l_final, S, eig_vecs)
 
     # L=reshape(L,nx,ny,nt);
     # S=reshape(param.W'*WS,nx,ny,nt);

@@ -74,7 +74,7 @@ def low_rank_pfm(data_filename, mask_filename, output_filename, tr, te=[0], thr=
     hrf_obj = HRFMatrix(TR=tr, nscans=int(data_masked.shape[0]), TE=te, has_integrator=False)
     hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
 
-    L, S = low_rank(data=data_masked, hrf=hrf_norm, lambda_weight=lambda_weight)
+    L, S, eigen_vecs = low_rank(data=data_masked, hrf=hrf_norm, lambda_weight=lambda_weight)
 
     # Debiasing
     S_deb, S_fitts = debiasing(x=hrf_norm, y=data_masked, beta=S, thr=thr)
@@ -95,6 +95,12 @@ def low_rank_pfm(data_filename, mask_filename, output_filename, tr, te=[0], thr=
     S_fitts_nib = nib.Nifti1Image(S_fitts_reshaped, None, header=data_header)
     S_fitts_output_filename = f'{output_filename}_fitts.nii.gz'
     S_fitts_nib.to_filename(S_fitts_output_filename)
+
+    # Saving eigen vectors
+    for i in range(eigen_vecs.shape[1]):
+        eigen_vecs_output_filename = f'{output_filename}_eigenvec_{i+1}.1D'
+        np.savetxt(eigen_vecs_output_filename, np.squeeze(eigen_vecs[:, i]))
+
     print('Results saved.')
 
     print('Updating file history...')
