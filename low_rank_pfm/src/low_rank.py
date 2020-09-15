@@ -145,6 +145,8 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
 
         print(f'Median: {np.median(non_noisy)} and MAD: {mad}')
         keep_idx = len(St[St > (np.median(non_noisy) + mad)])
+        if keep_idx > 3:
+            keep_idx = 3
         print(f'Keeping {keep_idx} eigenvalues...')
 
         lambda_L = np.diag(St)[keep_idx] * 1.01
@@ -165,7 +167,6 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
 
         MDIF[i] = 1e20
         x_diff[i] = MDIF[i]
-        ncDIF = 0
         t[i] = 1
 
         for i in range(maxiter):
@@ -320,7 +321,7 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
             else:
                 MDIF[i] = np.max(x_diff[i:(i - ii - 1):-1])
 
-            if i > (miniter - 1) and (ERR[i] - ERR[i-1]) < tol:
+            if i > (miniter - 1) and (ERR[i] - ERR[i - 1]) < tol:
                 break
 
         # END WHILE
