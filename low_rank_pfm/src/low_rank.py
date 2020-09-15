@@ -193,7 +193,7 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
             if group == 0:
                 SZ = SoftThresh(YSS, lambda_S / cc)
             else:
-                SZ = proximal_operator_mixed_norm(YSS, lambda_S / cc)
+                SZ = proximal_operator_mixed_norm(YSS, lambda_S / cc, rho_val=(1 - group))
 
             SZ_YS = SZ - YS
             LZ_YL = LZ - YL
