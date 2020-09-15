@@ -70,7 +70,7 @@ def _get_parser():
     optional.add_argument('-d', '--debias',
                           dest='do_debias',
                           action='store_true',
-                          help='Perform debiasing step. Defaukt = False.',
+                          help='Perform debiasing step. Default = False.',
                           default=False)
     optional.add_argument('-v', '--version', action='version',
                           version=('%(prog)s ' + __version__))
