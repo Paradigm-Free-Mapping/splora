@@ -53,19 +53,25 @@ def _get_parser():
     optional.add_argument('-thr',
                           dest='thr',
                           type=float,
-                          help='Threshold to be used on debiasing step.',
-                          default=1e-3)
+                          help='Threshold to be used on debiasing step. Default = 0.01',
+                          default=1e-2)
     optional.add_argument('-l', '--lambda',
                           dest='lambda_weight',
                           type=float,
-                          help='Weight to multiply noise estimation for regularization.',
+                          help='Weight to multiply noise estimation for regularization. '
+                               'Default = 1.1',
                           default=1.1)
     optional.add_argument('-g', '--group',
                           dest='group',
                           type=float,
                           help='Weight of the grouping in space (we suggest not going '
-                               'higher than 0.3).',
+                               'higher than 0.3). Default = 0.',
                           default=0)
+    optional.add_argument('-d', '--debias',
+                          dest='do_debias',
+                          action='store_true',
+                          help='Perform debiasing step. Defaukt = False.',
+                          default=False)
     optional.add_argument('-v', '--version', action='version',
                           version=('%(prog)s ' + __version__))
 

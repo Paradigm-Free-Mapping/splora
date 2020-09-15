@@ -50,7 +50,7 @@ def debiasing(x, y, beta, thr=1e-3):
 
 
 def low_rank_pfm(data_filename, mask_filename, output_filename, tr, te=[0], thr=1e-3,
-                 lambda_weight=1.1, group=0):
+                 lambda_weight=1.1, group=0, do_debias=False):
     """
     Low-rank PFM main function.
 
@@ -78,7 +78,11 @@ def low_rank_pfm(data_filename, mask_filename, output_filename, tr, te=[0], thr=
                                 group=group)
 
     # Debiasing
-    S_deb, S_fitts = debiasing(x=hrf_norm, y=data_masked, beta=S, thr=thr)
+    if do_debias:
+        S_deb, S_fitts = debiasing(x=hrf_norm, y=data_masked, beta=S, thr=thr)
+    else:
+        S_deb = S
+        S_fitts = np.dot(hrf_norm, S_deb)
 
     print('Saving results...')
     # Save estimated fluctuations
