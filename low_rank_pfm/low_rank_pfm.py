@@ -50,7 +50,7 @@ def debiasing(x, y, beta, thr=1e-3):
 
 
 def low_rank_pfm(data_filename, mask_filename, output_filename, tr, te=[0], thr=1e-3,
-                 lambda_weight=1.1):
+                 lambda_weight=1.1, group=0):
     """
     Low-rank PFM main function.
 
@@ -74,7 +74,8 @@ def low_rank_pfm(data_filename, mask_filename, output_filename, tr, te=[0], thr=
     hrf_obj = HRFMatrix(TR=tr, nscans=int(data_masked.shape[0]), TE=te, has_integrator=False)
     hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
 
-    L, S, eigen_vecs = low_rank(data=data_masked, hrf=hrf_norm, lambda_weight=lambda_weight)
+    L, S, eigen_vecs = low_rank(data=data_masked, hrf=hrf_norm, lambda_weight=lambda_weight,
+                                group=group)
 
     # Debiasing
     S_deb, S_fitts = debiasing(x=hrf_norm, y=data_masked, beta=S, thr=thr)

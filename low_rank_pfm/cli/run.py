@@ -60,6 +60,12 @@ def _get_parser():
                           type=float,
                           help='Weight to multiply noise estimation for regularization.',
                           default=1.1)
+    optional.add_argument('-g', '--group',
+                          dest='group',
+                          type=float,
+                          help='Weight of the grouping in space (we suggest not going '
+                               'higher than 0.3).',
+                          default=0)
     optional.add_argument('-v', '--version', action='version',
                           version=('%(prog)s ' + __version__))
 
