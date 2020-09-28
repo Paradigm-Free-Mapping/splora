@@ -137,13 +137,24 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
         Ut, St, Vt = svd(data, full_matrices=False,
                          compute_uv=True, check_finite=True)
 
-        kn = KneeLocator(np.arange(len(St)), St, curve='convex', direction='decreasing')
-        keep_idx = np.where(kn.y_difference >= 0.95 * np.max(kn.y_difference))[0][0]
+        # kn = KneeLocator(np.arange(len(St)), St, curve='convex', direction='decreasing')
+        # keep_idx = np.where(kn.y_difference >= 0.95 * np.max(kn.y_difference))[0][0]
+        St_diff = abs(np.diff(St) / St[1:])
+        keep_diff = np.where(St_diff >= 0.25)[0]
+
+        keep_idx = 0
+        diff_old = -1
+        for i in range(len(keep_diff)):
+            if (keep_diff[i] - diff_old) == 1:
+                keep_idx = keep_diff[i]
+            else:
+                break
+            diff_old = keep_diff[i]
 
         if l_iter == 0:
             lambda_S = noise_est * lambda_weight
 
-        print(f'Keeping {keep_idx} eigenvalues...')
+        print(f'Keeping {keep_idx + 1} eigenvalues...')
 
         lambda_L = St[keep_idx] * 1.01
         nv = np.ones((nvox, ))
