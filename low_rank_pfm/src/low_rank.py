@@ -161,7 +161,7 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
         nv = np.ones((nvox, ))
 
         nv_2_save[:, l_iter] = nv
-        St[keep_idx:] = 0
+        St[keep_idx + 1:] = 0
 
         # Residue
         L2cost[i] = (1 / 2
