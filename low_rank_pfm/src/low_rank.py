@@ -44,7 +44,8 @@ def proximal_operator_mixed_norm(y, lambda_val, rho_val=0.8, groups='space'):
     return(x)
 
 
-def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambda_weight=1.1, group=0):
+def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambda_weight=1.1,
+             group=0, eigen_thr=0.1):
     """
     L+S reconstruction of undersampled dynamic MRI data using iterative
     soft-thresholding of singular values of L and soft-thresholding of
@@ -140,7 +141,7 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
         # kn = KneeLocator(np.arange(len(St)), St, curve='convex', direction='decreasing')
         # keep_idx = np.where(kn.y_difference >= 0.95 * np.max(kn.y_difference))[0][0]
         St_diff = abs(np.diff(St) / St[1:])
-        keep_diff = np.where(St_diff >= 0.25)[0]
+        keep_diff = np.where(St_diff >= eigen_thr)[0]
 
         keep_idx = 0
         diff_old = -1
