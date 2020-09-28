@@ -143,13 +143,6 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
         if l_iter == 0:
             lambda_S = noise_est * lambda_weight
 
-        # non_noisy = St[St > 3 * np.std(St)]
-        # mad = median_absolute_deviation(non_noisy)
-
-        # print(f'Median: {np.median(non_noisy)} and MAD: {mad}')
-        # keep_idx = len(St[St > (np.median(non_noisy) + mad)])
-        # if keep_idx > 3:
-            # keep_idx = 3
         print(f'Keeping {keep_idx} eigenvalues...')
 
         lambda_L = St[keep_idx] * 1.01
