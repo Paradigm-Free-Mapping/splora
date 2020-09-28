@@ -379,5 +379,6 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
     Ut, St, Vt = svd(np.nan_to_num(l_final), full_matrices=False, compute_uv=True,
                      check_finite=True)
     eig_vecs = Ut[:, :keep_idx]
+    eig_maps = Ut[:keep_idx, :]
 
-    return(l_final, S, eig_vecs)
+    return(l_final, S, eig_vecs, eig_maps)

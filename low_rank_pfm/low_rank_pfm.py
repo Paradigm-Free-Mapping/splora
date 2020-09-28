@@ -74,8 +74,9 @@ def low_rank_pfm(data_filename, mask_filename, output_filename, tr, te=[0], thr=
     hrf_obj = HRFMatrix(TR=tr, nscans=int(data_masked.shape[0]), TE=te, has_integrator=False)
     hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
 
-    L, S, eigen_vecs = low_rank(data=data_masked, hrf=hrf_norm, lambda_weight=lambda_weight,
-                                group=group)
+    L, S, eigen_vecs, eigen_maps = low_rank(data=data_masked, hrf=hrf_norm,
+                                            lambda_weight=lambda_weight,
+                                            group=group)
 
     # Debiasing
     if do_debias:
@@ -101,10 +102,14 @@ def low_rank_pfm(data_filename, mask_filename, output_filename, tr, te=[0], thr=
     S_fitts_output_filename = f'{output_filename}_fitts.nii.gz'
     S_fitts_nib.to_filename(S_fitts_output_filename)
 
-    # Saving eigen vectors
+    # Saving eigen vectors and maps
     for i in range(eigen_vecs.shape[1]):
         eigen_vecs_output_filename = f'{output_filename}_eigenvec_{i+1}.1D'
         np.savetxt(eigen_vecs_output_filename, np.squeeze(eigen_vecs[:, i]))
+        eigen_map_reshaped = reshape_data(eigen_maps[i, :], dims, mask_idxs)
+        eigen_map_nib = nib.Nifti1Image(eigen_map_reshaped, None, header=data_header)
+        eigen_map_output_filename = f'{output_filename}_eigenmap_{i+1}.nii.gz'
+        eigen_map_nib.to_filename(eigen_map_output_filename)
 
     print('Results saved.')
 
