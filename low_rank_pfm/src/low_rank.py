@@ -1,5 +1,6 @@
 import numpy as np
 import time
+from kneed import KneeLocator
 from scipy.linalg import svd
 from scipy.stats import median_absolute_deviation
 from pywt import wavedec
@@ -136,20 +137,22 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
         Ut, St, Vt = svd(data, full_matrices=False,
                          compute_uv=True, check_finite=True)
 
-        St = np.diag(St)
+        kn = KneeLocator(np.arange(len(St)), St, curve='convex', direction='decreasing')
+        keep_idx = np.where(kn.y_difference >= 0.95 * np.max(kn.y_difference))[0][0]
+
         if l_iter == 0:
             lambda_S = noise_est * lambda_weight
 
-        non_noisy = St[St > 3 * np.std(St)]
-        mad = median_absolute_deviation(non_noisy)
+        # non_noisy = St[St > 3 * np.std(St)]
+        # mad = median_absolute_deviation(non_noisy)
 
-        print(f'Median: {np.median(non_noisy)} and MAD: {mad}')
-        keep_idx = len(St[St > (np.median(non_noisy) + mad)])
-        if keep_idx > 3:
-            keep_idx = 3
+        # print(f'Median: {np.median(non_noisy)} and MAD: {mad}')
+        # keep_idx = len(St[St > (np.median(non_noisy) + mad)])
+        # if keep_idx > 3:
+            # keep_idx = 3
         print(f'Keeping {keep_idx} eigenvalues...')
 
-        lambda_L = np.diag(St)[keep_idx] * 1.01
+        lambda_L = St[keep_idx] * 1.01
         nv = np.ones((nvox, ))
 
         nv_2_save[:, l_iter] = nv
