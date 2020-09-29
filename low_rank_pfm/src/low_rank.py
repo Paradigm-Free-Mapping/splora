@@ -147,7 +147,7 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
         diff_old = -1
         for i in range(len(keep_diff)):
             if (keep_diff[i] - diff_old) == 1:
-                keep_idx = keep_diff[i]
+                keep_idx = keep_diff[i] + 1
             else:
                 break
             diff_old = keep_diff[i]
