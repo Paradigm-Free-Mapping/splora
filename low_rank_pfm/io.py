@@ -52,7 +52,7 @@ def reshape_data(signal2d, dims, mask_idxs):
     idxs = 0
 
     # Merges signal on mask indices with blank image
-    for i in range(dims[3]):
+    for i in range(signal2d.shape[0]):
         if len(mask_idxs.shape) > 3:
             idxs = np.where(mask_idxs[:, :, :, i] != 0)
         else:
