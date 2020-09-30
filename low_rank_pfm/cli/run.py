@@ -55,6 +55,11 @@ def _get_parser():
                           type=float,
                           help='Threshold to be used on debiasing step. Default = 0.01',
                           default=1e-2)
+    optional.add_argument('-eigthr',
+                          dest='eigthr',
+                          type=float,
+                          help='Threshold to be used on eigen value selection. Default = 0.25',
+                          default=0.25)
     optional.add_argument('-l', '--lambda',
                           dest='lambda_weight',
                           type=float,
