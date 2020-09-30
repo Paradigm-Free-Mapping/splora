@@ -329,14 +329,14 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
             else:
                 MDIF[i] = np.max(x_diff[i:(i - ii - 1):-1])
 
-            MSE_iter = np.min(np.sqrt(np.sum(abs(((np.dot(hrf, S) + L) - data)) ** 2, axis=0)) / nt)
+            # MSE_iter = np.min(np.sqrt(np.sum(abs(((np.dot(hrf, S) + L) - data)) ** 2, axis=0)) / nt)
 
-            if i > (miniter - 1) and (MSE_iter) < tol:
+            if i > (miniter - 1) and (ERR[i] - ERR[i - 1]) < tol:
                 break
 
         # END WHILE
 
-        # MSE_iter = np.min(np.sqrt(np.sum(abs(((np.dot(hrf, S) + L) - data)) ** 2, axis=0)) / nt)
+        MSE_iter = np.min(np.sqrt(np.sum(abs(((np.dot(hrf, S) + L) - data)) ** 2, axis=0)) / nt)
 
         print(f'MSE on iter {l_iter+1} is {MSE_iter}')
         if l_iter == 0:
@@ -370,7 +370,7 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
         l_iter += 1
         if l_iter == 0:
             break
-        MSE_iter = np.sqrt(np.sum(((np.dot(hrf, S) + L) - data) ** 2, axis=0) / nt)
+        # MSE_iter = np.sqrt(np.sum(((np.dot(hrf, S) + L) - data) ** 2, axis=0) / nt)
         data = data - L
     # END WHILE
 
