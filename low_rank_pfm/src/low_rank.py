@@ -385,8 +385,8 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
     max_eig_vecs = np.max(eig_vecs, axis=0)
     eig_vecs = (eig_vecs - min_eig_vecs) / (max_eig_vecs - min_eig_vecs)
     eig_maps = Vt[:keep_idx, :]
-    mean_eig_maps = np.mean(eig_maps, axis=1)
-    std_eig_maps = np.std(eig_maps, axis=1)
+    mean_eig_maps = np.expand_dims(np.mean(eig_maps, axis=1), axis=1)
+    std_eig_maps = np.expand_dims(np.std(eig_maps, axis=1), axis=1)
     eig_maps = (eig_maps - mean_eig_maps) / std_eig_maps
 
     return(l_final, S, eig_vecs, eig_maps)
