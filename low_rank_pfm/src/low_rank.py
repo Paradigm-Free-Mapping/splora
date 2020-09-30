@@ -143,7 +143,7 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
         St_diff = abs(np.diff(St) / St[1:])
         keep_diff = np.where(St_diff >= eigen_thr)[0]
 
-        keep_idx = 0
+        keep_idx = 1
         diff_old = -1
         for i in range(len(keep_diff)):
             if (keep_diff[i] - diff_old) == 1:
