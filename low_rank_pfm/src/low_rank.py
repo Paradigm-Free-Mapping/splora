@@ -177,7 +177,7 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
         x_diff[i] = MDIF[i]
         t[i] = 1
 
-        for i in range(maxiter):
+        for i in range(maxiter - 1):
             # data consistency gradient
             y_YA = data - YA
 
