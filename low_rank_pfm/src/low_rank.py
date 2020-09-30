@@ -155,7 +155,7 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
         if l_iter == 0:
             lambda_S = noise_est * lambda_weight
 
-        print(f'Keeping {keep_idx + 1} eigenvalues...')
+        print(f'Keeping {keep_idx} eigenvalues...')
 
         lambda_L = St[keep_idx] * 1.01
         nv = np.ones((nvox, ))
@@ -379,7 +379,14 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
     # Return eigen vectors we keep.
     Ut, St, Vt = svd(np.nan_to_num(l_final), full_matrices=False, compute_uv=True,
                      check_finite=True)
+
     eig_vecs = Ut[:, :keep_idx]
+    mean_eig_vecs = np.mean(eig_vecs, axis=0)
+    std_eig_vecs = np.std(eig_vecs, axis=0)
+    eig_vecs = (eig_vecs - mean_eig_vecs) / std_eig_vecs
     eig_maps = Vt[:keep_idx, :]
+    mean_eig_maps = np.mean(eig_maps, axis=1)
+    std_eig_maps = np.std(eig_maps, axis=1)
+    eig_maps = (eig_maps - mean_eig_maps) / std_eig_maps
 
     return(l_final, S, eig_vecs, eig_maps)
