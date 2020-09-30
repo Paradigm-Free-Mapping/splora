@@ -44,8 +44,8 @@ def proximal_operator_mixed_norm(y, lambda_val, rho_val=0.8, groups='space'):
     return(x)
 
 
-def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambda_weight=1.1,
-             group=0, eigen_thr=0.1):
+def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda_weight=1.1,
+             group=0, eigen_thr=0.25):
     """
     L+S reconstruction of undersampled dynamic MRI data using iterative
     soft-thresholding of singular values of L and soft-thresholding of
@@ -329,12 +329,14 @@ def low_rank(data, hrf, maxiter=1000, miniter=10, vox_2_keep=0.3, nruns=1, lambd
             else:
                 MDIF[i] = np.max(x_diff[i:(i - ii - 1):-1])
 
-            if i > (miniter - 1) and (ERR[i] - ERR[i - 1]) < tol:
+            MSE_iter = np.min(np.sqrt(np.sum(abs(((np.dot(hrf, S) + L) - data)) ** 2, axis=0)) / nt)
+
+            if i > (miniter - 1) and (MSE_iter) < tol:
                 break
 
         # END WHILE
 
-        MSE_iter = np.min(np.sqrt(np.sum(abs(((np.dot(hrf, S) + L) - data)) ** 2, axis=0)) / nt)
+        # MSE_iter = np.min(np.sqrt(np.sum(abs(((np.dot(hrf, S) + L) - data)) ** 2, axis=0)) / nt)
 
         print(f'MSE on iter {l_iter+1} is {MSE_iter}')
         if l_iter == 0:
