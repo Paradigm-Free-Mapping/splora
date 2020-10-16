@@ -1,7 +1,7 @@
 import numpy as np
 import time
 from kneed import KneeLocator
-from scipy.linalg import svd
+from scipy.linalg import svd, norm
 from scipy.stats import median_absolute_deviation
 from pywt import wavedec
 from scipy import stats
@@ -45,7 +45,7 @@ def proximal_operator_mixed_norm(y, lambda_val, rho_val=0.8, groups='space'):
 
 
 def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda_weight=1.1,
-             group=0, eigen_thr=0.25):
+             group=0, eigen_thr=0.25, is_pfm=False):
     """
     L+S reconstruction of undersampled dynamic MRI data using iterative
     soft-thresholding of singular values of L and soft-thresholding of
@@ -88,7 +88,7 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
     S = np.zeros((nt, nvox))
 
     # algorithm parameters
-    cc = 10
+    cc = (norm(hrf**2))
     mu_in = 1.5
     tol = 1e-6
     restart = False
@@ -100,7 +100,7 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
     A = 0
     lambda_S = 0
     l_final = 0
-    keep_idx = 2
+    keep_idx = 1
 
     for ii in range(nruns):
 
@@ -158,6 +158,9 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
         print(f'Keeping {keep_idx} eigenvalues...')
 
         lambda_L = St[keep_idx] * 1.01
+
+        if is_pfm:
+            lambda_L = 0
         nv = np.ones((nvox, ))
 
         nv_2_save[:, l_iter] = nv
@@ -202,6 +205,8 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
                 SZ = SoftThresh(YSS, lambda_S / cc)
             else:
                 SZ = proximal_operator_mixed_norm(YSS, lambda_S / cc, rho_val=(1 - group))
+            
+            SZ[abs(SZ) < 5e-4] = 0
 
             SZ_YS = SZ - YS
             LZ_YL = LZ - YL
@@ -259,9 +264,9 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
                         A = AS
                         COSTC = COSTCS
                         mu[i] = mu_in
-            S_nonzero = np.count_nonzero(S, axis=1)
-            global_fluc = np.where(S_nonzero > nvox * vox_2_keep)[0]
-            S[global_fluc, :] = 0
+            # S_nonzero = np.count_nonzero(S, axis=1)
+            # global_fluc = np.where(S_nonzero > nvox * vox_2_keep)[0]
+            # S[global_fluc, :] = 0
 
             # Alpha step gap
             delta[i] = -COSTC + COSTCZ
@@ -374,9 +379,9 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
         data = data - L
     # END WHILE
 
-    S_nonzero = np.count_nonzero(S, axis=1)
-    global_fluc = np.where(S_nonzero > nvox * vox_2_keep)[0]
-    S[global_fluc, :] = 0
+    # S_nonzero = np.count_nonzero(S, axis=1)
+    # global_fluc = np.where(S_nonzero > nvox * vox_2_keep)[0]
+    # S[global_fluc, :] = 0
 
     # Return eigen vectors we keep.
     Ut, St, Vt = svd(np.nan_to_num(l_final), full_matrices=False, compute_uv=True,

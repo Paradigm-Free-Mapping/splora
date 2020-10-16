@@ -50,7 +50,7 @@ def debiasing(x, y, beta, thr=1e-3):
 
 
 def low_rank_pfm(data_filename, mask_filename, output_filename, tr, te=[0], thr=1e-3,
-                 eigthr=0.25, lambda_weight=1.1, group=0, do_debias=False):
+                 eigthr=0.25, lambda_weight=1.1, group=0, do_debias=False, is_pfm=False):
     """
     Low-rank PFM main function.
 
@@ -76,7 +76,8 @@ def low_rank_pfm(data_filename, mask_filename, output_filename, tr, te=[0], thr=
 
     L, S, eigen_vecs, eigen_maps = low_rank(data=data_masked, hrf=hrf_norm,
                                             lambda_weight=lambda_weight,
-                                            group=group, eigen_thr=eigthr)
+                                            group=group, eigen_thr=eigthr,
+                                            is_pfm=is_pfm)
 
     # Debiasing
     if do_debias:

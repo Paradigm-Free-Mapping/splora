@@ -1,0 +1,3 @@
+[console_scripts]
+low_rank_pfm = low_rank_pfm.low_rank_pfm:_main
+

@@ -77,6 +77,11 @@ def _get_parser():
                           action='store_true',
                           help='Perform debiasing step. Default = False.',
                           default=False)
+    optional.add_argument('-pfm', '--pfm',
+                          dest='is_pfm',
+                          action='store_true',
+                          help='Use original PFM formulation without low-rank. Default = False.',
+                          default=False)
     optional.add_argument('-v', '--version', action='version',
                           version=('%(prog)s ' + __version__))
 
