@@ -56,7 +56,7 @@ def hrf_afni(tr, lop_hrf):
     # Increases duration until last HRF sample is zero
     while last_hrf_sample != 0:
         dur_hrf = 2*dur_hrf
-        npoints_hrf = np.round(dur_hrf, int(tr))
+        npoints_hrf = np.round(dur_hrf/ tr)    
         hrf_command = '3dDeconvolve -x1D_stop -nodata %d %f -polort -1 -num_stimts 1 -stim_times 1 \'1D:0\' \'%s\' -quiet -x1D stdout: | 1deval -a stdin: -expr \'a\'' %(dur_hrf, tr, lop_hrf)
         hrf_tr_str = subprocess.check_output(hrf_command, shell = True, universal_newlines = True).splitlines()
         hrf_tr = np.array([float(i) for i in hrf_tr_str])
@@ -73,7 +73,7 @@ def hrf_afni(tr, lop_hrf):
 
 class HRFMatrix:
 
-    def __init__(self, TR=2.0, TE=None, nscans=200, r2only=1, is_afni=True, lop_hrf='SPMG1', has_integrator=True):
+    def __init__(self, TR=2, TE=None, nscans=200, r2only=1, is_afni=True, lop_hrf='SPMG1', has_integrator=True):
         self.TR = TR
         self.TE = TE
         self.nscans = nscans

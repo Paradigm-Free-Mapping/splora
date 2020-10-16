@@ -103,15 +103,16 @@ def low_rank_pfm(data_filename, mask_filename, output_filename, tr, te=[0], thr=
     S_fitts_output_filename = f'{output_filename}_fitts.nii.gz'
     S_fitts_nib.to_filename(S_fitts_output_filename)
 
-    # Saving eigen vectors and maps
-    for i in range(eigen_vecs.shape[1]):
-        eigen_vecs_output_filename = f'{output_filename}_eigenvec_{i+1}.1D'
-        np.savetxt(eigen_vecs_output_filename, np.squeeze(eigen_vecs[:, i]))
-        eigen_map_reshaped = reshape_data(np.expand_dims(eigen_maps[i, :], axis=0), dims,
-                                          mask_idxs)
-        eigen_map_nib = nib.Nifti1Image(eigen_map_reshaped, None, header=data_header)
-        eigen_map_output_filename = f'{output_filename}_eigenmap_{i+1}.nii.gz'
-        eigen_map_nib.to_filename(eigen_map_output_filename)
+    if is_pfm is False:
+        # Saving eigen vectors and maps
+        for i in range(eigen_vecs.shape[1]):
+            eigen_vecs_output_filename = f'{output_filename}_eigenvec_{i+1}.1D'
+            np.savetxt(eigen_vecs_output_filename, np.squeeze(eigen_vecs[:, i]))
+            eigen_map_reshaped = reshape_data(np.expand_dims(eigen_maps[i, :], axis=0), dims,
+                                            mask_idxs)
+            eigen_map_nib = nib.Nifti1Image(eigen_map_reshaped, None, header=data_header)
+            eigen_map_output_filename = f'{output_filename}_eigenmap_{i+1}.nii.gz'
+            eigen_map_nib.to_filename(eigen_map_output_filename)
 
     print('Results saved.')
 
