@@ -1,0 +1,29 @@
+Metadata-Version: 2.1
+Name: low-rank-pfm
+Version: 0+untagged.27.gde7badf
+Summary: Python library to convert physiological data files into BIDS format
+Home-page: https://github.com/eurunuela/low_rank_pfm
+Author: Eneko Uruñuela
+Maintainer: Eneko Uruñuela
+Maintainer-email: e.urunuela@bcbl.eu
+License: Apache-2.0
+Download-URL: https://github.com/eurunuela/low_rank_pfm
+Description: # Low Rank and Sparse Paradigm Free Mapping
+        
+        Repo for the Low Rank and Sparse PFM algorithm.
+        
+        It only works with single echo right now.
+        
+        First, install with `pip install .`. Then call it with `low_rank_pfm -i data.nii.gz -m mask.nii.gz -tr 2`.
+        
+        You can also use the package by importing to your own Python script.
+        
+Platform: OS Independent
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Provides: low_rank_pfm
+Requires-Python: >=3.6.1
+Description-Content-Type: text/markdown; charset=UTF-8

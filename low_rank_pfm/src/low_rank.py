@@ -45,7 +45,7 @@ def proximal_operator_mixed_norm(y, lambda_val, rho_val=0.8, groups='space'):
 
 
 def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda_weight=1.1,
-             group=0, eigen_thr=0.25):
+             group=0, eigen_thr=0.25, is_pfm=False):
     """
     L+S reconstruction of undersampled dynamic MRI data using iterative
     soft-thresholding of singular values of L and soft-thresholding of
@@ -91,6 +91,7 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
     # algorithm parameters
     cc = (norm(hrf) ** 2)
     mu_in = 1
+
     tol = 1e-6
     # restart = False
     comp_cost = False
@@ -220,6 +221,8 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
                 SZ = SoftThresh(YSS, lambda_S / cc)
             else:
                 SZ = proximal_operator_mixed_norm(YSS, lambda_S / cc, rho_val=(1 - group))
+            
+            SZ[abs(SZ) < 5e-4] = 0
 
             SZ_YS = SZ - YS
             LZ_YL = LZ - YL
@@ -419,9 +422,9 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
         # data = data - L
     # END WHILE
 
-    S_nonzero = np.count_nonzero(S, axis=1)
-    global_fluc = np.where(S_nonzero > nvox * vox_2_keep)[0]
-    S[global_fluc, :] = 0
+    # S_nonzero = np.count_nonzero(S, axis=1)
+    # global_fluc = np.where(S_nonzero > nvox * vox_2_keep)[0]
+    # S[global_fluc, :] = 0
 
     breakpoint()
 
