@@ -5,7 +5,7 @@ from scipy.linalg import svd, norm
 from scipy.stats import median_absolute_deviation
 from pywt import wavedec
 from scipy import stats
-
+import matplotlib.pyplot as plt
 
 # soft-thresholding function
 def SoftThresh(x, p, is_low_rank=False):
@@ -82,7 +82,8 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
 
     _, cD1 = wavedec(data, 'db3', level=1, axis=0)
 
-    noise_est = stats.median_absolute_deviation(cD1) / 0.8095
+    noise_est = np.median(abs(cD1 - np.median(cD1, axis=0)), axis=0) / 0.6745
+
     nv_2_save = np.zeros((nvox, 50))
     L = np.zeros((nt, nvox))
     S = np.zeros((nt, nvox))
@@ -105,7 +106,7 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
 
         # data[abs(data) < 1e-3] = 0
 
-        i = 0
+        # i = 0
 
         if l_iter == 0:
             A = np.dot(hrf, S) + L
@@ -129,7 +130,7 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
         mu = np.zeros((maxiter, ))
 
         start_time = time.time()
-        TIM[i] = time.time() - start_time
+        # TIM[i] = time.time() - start_time
 
         # if l_iter == 0:
         Ut, St, Vt = svd(data, full_matrices=False,
@@ -149,29 +150,35 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
                 break
             diff_old = keep_diff[i]
 
-        if l_iter == 0:
-            lambda_S = noise_est * lambda_weight
+        # if l_iter == 0:
+        #     lambda_S = noise_est * lambda_weight
+        lambda_S = noise_est * np.sqrt(2 * np.log10(nt) - np.log10(1 + 4 * np.log10(nt))) # * np.sqrt(2)
 
-        print(f'Keeping {keep_idx} eigenvalues...')
+        # print(f'Keeping {keep_idx} eigenvalues...')
 
         # Take lambda higher than eigen value we keep.
-        lambda_L = St[keep_idx] * 1.01
+        # lambda_L = St[keep_idx] * 1.01
+        lambda_L = np.sqrt(2 * nvox) * (np.median(abs(cD1 - np.median(cD1))) / 0.6745)
+        # lambda_L = np.sqrt(2) * (np.median(abs(cD1 - np.median(cD1))) / 0.6745) / np.mean(lambda_S)
+
         nv = np.ones((nvox, ))
 
         nv_2_save[:, l_iter] = nv
         St[keep_idx + 1:] = 0
 
         # Residue
-        L2cost[i] = (1 / 2
-                     * np.linalg.norm(data.flatten() - A.flatten(), ord=2) ** 2)
-        L1cost[i] = np.linalg.norm(S.flatten(), ord=1)
-        Ls = svd(L, full_matrices=False, compute_uv=False)
-        Ncost[i] = np.sum(Ls)
-        COST[i] = L2cost[i] + lambda_L * Ncost[i] + np.mean(lambda_S) * L1cost[i]
-        # Estimation error
-        ERR[i] = np.linalg.norm(data.flatten() - A.flatten(), ord=2)
+        # L2cost[i] = (1 / 2
+        #              * np.linalg.norm(data.flatten() - A.flatten(), ord=2) ** 2)
+        # L1cost[i] = np.linalg.norm(S.flatten(), ord=1)
+        # Ls = svd(L, full_matrices=False, compute_uv=False)
+        # Ncost[i] = np.sum(Ls)
+        # COST[i] = L2cost[i] + lambda_L * Ncost[i] + np.mean(lambda_S) * L1cost[i]
+        # # Estimation error
+        # ERR[i] = np.linalg.norm(data.flatten() - A.flatten(), ord=2)
 
-        t[i] = 1
+        t[0] = 1
+        MSE_iter_old = np.array([0.3])
+        lambda_S_old = np.array([lambda_S[0]])
 
         for i in range(maxiter - 1):
             # data consistency gradient
@@ -182,19 +189,30 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
             AO = A.copy()
 
             # Low-rank update
-            if(lambda_L != 0):
-                Ut, St, Vt = svd(np.nan_to_num(YL + (1 / cc) * y_YA), full_matrices=False,
-                                 compute_uv=True, check_finite=True)
-                # St = np.diag(SoftThresh(St, lambda_L / cc, is_low_rank=True))
-                St[keep_idx + 1:] = 0
-                lambda_L = St[keep_idx] * 1.01
-                LZ = np.dot(np.dot(Ut, np.diag(St)), Vt)
-            else:
-                LZ = np.zeros((L.shape))
-                YL = np.zeros((L.shape))
+            # if i > 0:
+            YLL = YL + (1 / cc) * y_YA
+            # else:
+                # YLL = data
+
+            # if(lambda_L != 0):
+            Ut, St, Vt = svd(np.nan_to_num(YLL), full_matrices=False,
+                             compute_uv=True, check_finite=True)
+
+            print(St[St > lambda_L / cc])
+            St = np.diag(SoftThresh(St, lambda_L / cc, is_low_rank=True))
+            # St[keep_idx + 1:] = 0
+            # lambda_L = St[keep_idx] * 1.01s
+            LZ = np.dot(np.dot(Ut, St), Vt)
+            # breakpoint()
+            # else:
+            #     LZ = np.zeros((L.shape))
+            #     YL = np.zeros((L.shape))
 
             # Sparse update
+            # if i > 0:
             YSS = YS + (1 / cc) * y_YA
+            # else:
+                # YSS = data
 
             # print(lambda_S)
 
@@ -232,7 +250,7 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
             L = LZ
             A = AZ
             # COSTC = COSTCZ
-            mu[i] = 1
+            # mu[i] = 1
             # else:
             #     S = SO
             #     L = LO
@@ -296,44 +314,74 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
             YL = L + t1 * (L_LO) # + t2 * (LZ_L)  #+ t3 * (LZ_YL)
             YA = A + t1 * (A_AO) # + t2 * (AZ_A)  #+ t3 * (AZ_YA)
 
-            i += 1
+            # breakpoint()
 
-            TIM[i] = time.time() - start_time
+            # i += 1
 
-            y_A = data - A
+            # TIM[i] = time.time() - start_time
 
-            if(comp_cost):
-                L2cost[i] = np.dot(y_A.flatten().T, y_A.flatten()) / 2  # Residue
-                L1cost[i] = np.linalg.norm(S.flatten(), ord=1)
-                Ls = svd(L, full_matrices=False,
-                         compute_uv=False, check_finite=True)
-                Ncost[i] = np.sum(Ls)
-                COST[i] = L2cost[i] + lambda_L * Ncost[i] + np.mean(lambda_S) * L1cost[i]
-                ERR[i] = np.linalg.norm(data.flatten() - A.flatten(), ord=2) / nt
-                # Print some numbers
-                if display:
-                    print(f'mfista-va i={i}, cost={COST[i]:.9f},'
-                          f'err={ERR[i]:.9f}, L={cc:.3f}, mu={mu[i-1]:.3f}, ')
-                    print(f'delta={delta[i-1]:.3f}, zeta={zeta[i-1]:.3f}, '
-                          f'eta={eta[i-1]:.3f}  \n')
+            # y_A = data - A
 
-            else:
-                # COST[i] = COSTC
-                if display:
-                    print(f'mfista-va i={i}, L={cc:.3f}, mu={mu[i-1]:.3f}, ')
-                    print(f'delta={delta[i-1]:.3f}, zeta={zeta[i-1]:.3f}, '
-                          f'eta={eta[i-1]:.3f}  \n')
+            # if(comp_cost):
+            #     L2cost[i] = np.dot(y_A.flatten().T, y_A.flatten()) / 2  # Residue
+            #     L1cost[i] = np.linalg.norm(S.flatten(), ord=1)
+            #     Ls = svd(L, full_matrices=False,
+            #              compute_uv=False, check_finite=True)
+            #     Ncost[i] = np.sum(Ls)
+            #     COST[i] = L2cost[i] + lambda_L * Ncost[i] + np.mean(lambda_S) * L1cost[i]
+            #     ERR[i] = np.linalg.norm(data.flatten() - A.flatten(), ord=2) / nt
+            #     # Print some numbers
+            #     if display:
+            #         print(f'mfista-va i={i}, cost={COST[i]:.9f},'
+            #               f'err={ERR[i]:.9f}, L={cc:.3f}, mu={mu[i-1]:.3f}, ')
+            #         print(f'delta={delta[i-1]:.3f}, zeta={zeta[i-1]:.3f}, '
+            #               f'eta={eta[i-1]:.3f}  \n')
 
-            # MSE_iter = np.sqrt(np.sum(abs(((np.dot(hrf, S) + L) - data)) ** 2, axis=0)) / nt
+            # else:
+            #     # COST[i] = COSTC
+            #     if display:
+            #         print(f'mfista-va i={i}, L={cc:.3f}, mu={mu[i-1]:.3f}, ')
+            #         print(f'delta={delta[i-1]:.3f}, zeta={zeta[i-1]:.3f}, '
+            #               f'eta={eta[i-1]:.3f}  \n')
 
-            # if abs(MSE_iter - noise_est).any() > tol:
-            #     breakpoint()
+            MSE_iter = np.sqrt(np.sum((np.dot(hrf, S) + L - data) ** 2, axis=0) / nt)
+            # MSE_iter_old = np.append(MSE_iter_old, MSE_iter[0])
+            # lambda_S_old = np.append(lambda_S_old, lambda_S[0])
+
+            plt.plot(S[:, 0], color='tab:blue', label='S')
+            # plt.plot(lambda_S_old, color='tab:green', label='Lambda')
+            # plt.legend()
+            plt.pause(0.05)
+            plt.show()
+
+            plt.plot(L[:, 0], color='tab:green', label='L')
+            # plt.plot(lambda_S_old, color='tab:green', label='Lambda')
+            # plt.legend()
+            plt.pause(0.05)
+            plt.show()
+            # print(MSE_iter)
+            # plt.plot(np.dot(Ut, St)[:, 0], label='L')
+            # plt.plot(np.dot(Ut, St)[:, 1], label='L')
+            # plt.plot(np.dot(Ut, St)[:, 2], label='L')
+            # plt.plot(np.dot(Ut, St)[:, 3], label='L')
+            plt.plot(YA[:, 0], label='L')
+            plt.plot(AZ_YA[:, 0], label='L')
+            plt.pause(0.05)
+            plt.show()
+
+            # print(np.min(MSE_iter - noise_est))
+
+            if np.mean(abs(MSE_iter - noise_est)) <= tol:
+                break
+            # if np.mean(abs(MSE_iter - noise_est)) > tol:
+            #     # breakpoint()
             #     lambda_S = lambda_S * noise_est / MSE_iter
+            #     print(f"Lambda: {lambda_S}")
             # else:
             #     break
 
-            if i > (miniter - 1) and (ERR[i] - ERR[i - 1]) < tol:
-                break
+            # if i > (miniter - 1) and (ERR[i] - ERR[i - 1]) < tol:
+            #     break
 
         # END WHILE
 
@@ -358,22 +406,24 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
         # if (l_iter > 0) and (MSE[l_iter - 1] < MSE[l_iter]):
         #     counter += 1
 
-        if l_iter == 0:
-            l_final = L.copy()
-        else:
-            l_final = L + L_old
+        # if l_iter == 0:
+        l_final = L.copy()
+        # else:
+        #     l_final = L + L_old
             # break
 
-        l_iter += 1
-        if l_iter == 0:
-            break
+        # l_iter += 1
+        # if l_iter == 0:
+        #     break
         # MSE_iter = np.sqrt(np.sum(((np.dot(hrf, S) + L) - data) ** 2, axis=0) / nt)
-        data = data - L
+        # data = data - L
     # END WHILE
 
     S_nonzero = np.count_nonzero(S, axis=1)
     global_fluc = np.where(S_nonzero > nvox * vox_2_keep)[0]
     S[global_fluc, :] = 0
+
+    breakpoint()
 
     # Return eigen vectors we keep.
     Ut, St, Vt = svd(np.nan_to_num(l_final), full_matrices=False, compute_uv=True,
