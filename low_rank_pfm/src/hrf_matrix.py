@@ -56,7 +56,7 @@ def hrf_afni(tr, lop_hrf):
     # Increases duration until last HRF sample is zero
     while last_hrf_sample != 0:
         dur_hrf = 2*dur_hrf
-        npoints_hrf = np.round(dur_hrf/ tr)    
+        # npoints_hrf = np.round(dur_hrf, tr)
         hrf_command = '3dDeconvolve -x1D_stop -nodata %d %f -polort -1 -num_stimts 1 -stim_times 1 \'1D:0\' \'%s\' -quiet -x1D stdout: | 1deval -a stdin: -expr \'a\'' %(dur_hrf, tr, lop_hrf)
         hrf_tr_str = subprocess.check_output(hrf_command, shell = True, universal_newlines = True).splitlines()
         hrf_tr = np.array([float(i) for i in hrf_tr_str])
@@ -68,8 +68,9 @@ def hrf_afni(tr, lop_hrf):
     while last_hrf_sample == 0:
         hrf_tr = hrf_tr[0:len(hrf_tr)-1]
         last_hrf_sample = hrf_tr[len(hrf_tr)-1]
-    
+
     return(hrf_tr)
+
 
 class HRFMatrix:
 
@@ -89,16 +90,16 @@ class HRFMatrix:
         else:
             p = [6,16,1,1,6,0,32]
             hrf_SPM = hrf_linear(self.TR, p)
-  
+
         self.L_hrf = len(hrf_SPM) # Length
         max_hrf = max(abs(hrf_SPM)) # Max value
         filler = np.zeros(self.nscans-hrf_SPM.shape[0], dtype=np.int)
         hrf_SPM = np.append(hrf_SPM, filler) # Fill up array with zeros until nscans
-    
+
         temp = hrf_SPM
-        
+
         for i in range(self.nscans-1):
-            foo = np.append(np.zeros(i+1), hrf_SPM[0:(len(hrf_SPM)-i-1)])      
+            foo = np.append(np.zeros(i+1), hrf_SPM[0:(len(hrf_SPM)-i-1)])
             temp = np.column_stack((temp, foo))
 
         if len(self.TE) > 1:
@@ -107,7 +108,7 @@ class HRFMatrix:
                 tempTE = np.vstack((tempTE, -self.TE[teidx+1]*temp))
         else:
             tempTE = temp
-        
+
         if self.r2only:
             self.X_hrf = tempTE
 
