@@ -1,22 +1,21 @@
-import numpy as np
 import time
-from kneed import KneeLocator
-from scipy.linalg import svd, norm
-from scipy.stats import median_absolute_deviation
+
+import numpy as np
 from pywt import wavedec
 from scipy import stats
+from scipy.linalg import norm, svd
 
 
 # soft-thresholding function
 def SoftThresh(x, p, is_low_rank=False):
     xa = abs(x)
-    xap = (xa > p)
+    xap = xa > p
     y = (xa - p) * (x / xa) * xap
     y[np.invert(xap)] = 0
-    return(y)
+    return y
 
 
-def proximal_operator_mixed_norm(y, lambda_val, rho_val=0.8, groups='space'):
+def proximal_operator_mixed_norm(y, lambda_val, rho_val=0.8, groups="space"):
     # Division parameter of proximal operator
     div = y / np.abs(y)
     div[np.isnan(div)] = 0
@@ -25,27 +24,44 @@ def proximal_operator_mixed_norm(y, lambda_val, rho_val=0.8, groups='space'):
     p_one = np.maximum(np.zeros(y.shape), (np.abs(y) - lambda_val * rho_val))
 
     # Second parameter of proximal operator
-    if groups == 'space':
-        foo = np.sum(np.maximum(np.zeros(y.shape), np.abs(y) - lambda_val * rho_val) ** 2, axis=1)
+    if groups == "space":
+        foo = np.sum(
+            np.maximum(np.zeros(y.shape), np.abs(y) - lambda_val * rho_val) ** 2, axis=1
+        )
         foo = foo.reshape(len(foo), 1)
         foo = np.dot(foo, np.ones((1, y.shape[1])))
     else:
-        foo = np.sum(np.maximum(np.zeros(y.shape), np.abs(y) - lambda_val * rho_val) ** 2, axis=0)
+        foo = np.sum(
+            np.maximum(np.zeros(y.shape), np.abs(y) - lambda_val * rho_val) ** 2, axis=0
+        )
         foo = foo.reshape(1, len(foo))
         foo = np.dot(np.ones((y.shape[0], 1), foo))
 
-    p_two = np.maximum(np.zeros(y.shape),
-                       np.ones(y.shape) - lambda_val * (1 - rho_val) / np.sqrt(foo))
+    p_two = np.maximum(
+        np.zeros(y.shape), np.ones(y.shape) - lambda_val * (1 - rho_val) / np.sqrt(foo)
+    )
 
     # Proximal operation
     x = div * p_one * p_two
 
     # Return result
-    return(x)
+    return x
 
 
-def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda_weight=1.1,
-             group=0, eigen_thr=0.25, is_pfm=False):
+def low_rank(
+    data,
+    hrf,
+    nt,
+    n_te=1,
+    maxiter=100,
+    miniter=10,
+    vox_2_keep=0.3,
+    nruns=1,
+    lambda_weight=1.5,
+    group=0,
+    eigen_thr=0.25,
+    is_pfm=False,
+):
     """
     L+S reconstruction of undersampled dynamic MRI data using iterative
     soft-thresholding of singular values of L and soft-thresholding of
@@ -75,25 +91,32 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
     v. ,pp , 2018
     """
 
-    print('MFISTA-AS for L2-L+S problems')
+    print("MFISTA-AS for L2-L+S problems")
 
-    nt = data.shape[0]
     nvox = data.shape[1]
 
-    _, cD1 = wavedec(data, 'db3', level=1, axis=0)
+    _, cD1 = wavedec(data, "db3", level=1, axis=0)
 
     noise_est = stats.median_absolute_deviation(cD1) / 0.6745
     nv_2_save = np.zeros((nvox, 50))
-    L = np.zeros((nt, nvox))
+
+    if n_te == 1:
+        L = np.zeros((nt, nvox))
+    else:
+        L = np.zeros((n_te * nt, nvox))
     S = np.zeros((nt, nvox))
 
     # algorithm parameters
-    cc = (norm(hrf**2))
+    cc = norm(hrf ** 2)
     mu_in = 1.5
     tol = 1e-6
     restart = False
-    comp_cost = True
+    comp_cost = False
     display = True
+
+    hrf_trans = hrf.T
+    hrf_cov = np.dot(hrf_trans, hrf)
+    v = np.dot(hrf_trans, data)
 
     # iterations
     l_iter = 0
@@ -117,28 +140,26 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
         YA = A.copy()
 
         # Initializes cost arrays
-        L2cost = np.zeros((maxiter, ))
-        L1cost = np.zeros((maxiter, ))
-        Ncost = np.zeros((maxiter, ))
-        COST = np.zeros((maxiter, ))
-        ERR = np.zeros((maxiter, ))
-        MDIF = np.zeros((maxiter, ))
-        x_diff = np.zeros((maxiter, ))
-        t = np.zeros((maxiter, ))
-        zeta = np.zeros((maxiter, ))
-        eta = np.zeros((maxiter, ))
-        delta = np.zeros((maxiter, ))
-        TIM = np.zeros((maxiter, ))
-        mu = np.zeros((maxiter, ))
+        L2cost = np.zeros((maxiter,))
+        L1cost = np.zeros((maxiter,))
+        Ncost = np.zeros((maxiter,))
+        COST = np.zeros((maxiter,))
+        ERR = np.zeros((maxiter,))
+        MDIF = np.zeros((maxiter,))
+        x_diff = np.zeros((maxiter,))
+        t = np.zeros((maxiter,))
+        zeta = np.zeros((maxiter,))
+        eta = np.zeros((maxiter,))
+        delta = np.zeros((maxiter,))
+        TIM = np.zeros((maxiter,))
+        mu = np.zeros((maxiter,))
 
         start_time = time.time()
         TIM[i] = time.time() - start_time
 
         # if l_iter == 0:
-        Ut, St, Vt = svd(data, full_matrices=False,
-                         compute_uv=True, check_finite=True)
+        Ut, St, Vt = svd(data, full_matrices=False, compute_uv=True, check_finite=True)
 
-        # kn = KneeLocator(np.arange(len(St)), St, curve='convex', direction='decreasing')
         # keep_idx = np.where(kn.y_difference >= 0.95 * np.max(kn.y_difference))[0][0]
         St_diff = abs(np.diff(St) / St[1:])
         keep_diff = np.where(St_diff >= eigen_thr)[0]
@@ -155,20 +176,19 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
         if l_iter == 0:
             lambda_S = noise_est * lambda_weight
 
-        print(f'Keeping {keep_idx} eigenvalues...')
+        print(f"Keeping {keep_idx} eigenvalues...")
 
         lambda_L = St[keep_idx] * 1.01
 
         if is_pfm:
             lambda_L = 0
-        nv = np.ones((nvox, ))
+        nv = np.ones((nvox,))
 
         nv_2_save[:, l_iter] = nv
-        St[keep_idx + 1:] = 0
+        St[keep_idx + 1 :] = 0
 
         # Residue
-        L2cost[i] = (1 / 2
-                     * np.linalg.norm(data.flatten() - A.flatten(), ord=2) ** 2)
+        L2cost[i] = 1 / 2 * np.linalg.norm(data.flatten() - A.flatten(), ord=2) ** 2
         L1cost[i] = np.linalg.norm(S.flatten(), ord=1)
         Ls = svd(L, full_matrices=False, compute_uv=False)
         Ncost[i] = np.sum(Ls)
@@ -189,9 +209,13 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
             AO = A.copy()
 
             # Low-rank update
-            if(lambda_L != 0):
-                Ut, St, Vt = svd(np.nan_to_num(YL + (1 / cc) * y_YA), full_matrices=False,
-                                 compute_uv=True, check_finite=True)
+            if lambda_L != 0:
+                Ut, St, Vt = svd(
+                    np.nan_to_num(YL + (1 / cc) * y_YA),
+                    full_matrices=False,
+                    compute_uv=True,
+                    check_finite=True,
+                )
                 St = np.diag(SoftThresh(St, lambda_L / cc, is_low_rank=True))
                 LZ = np.dot(np.dot(Ut, St), Vt)
             else:
@@ -199,14 +223,18 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
                 YL = np.zeros((L.shape))
 
             # Sparse update
-            YSS = YS + (1 / cc) * y_YA
+            YS_residual = v - np.dot(hrf_cov, YS)
+            YSS = YS + (1 / cc) * YS_residual  # y_YA
 
             if group == 0:
                 SZ = SoftThresh(YSS, lambda_S / cc)
             else:
-                SZ = proximal_operator_mixed_norm(YSS, lambda_S / cc, rho_val=(1 - group))
-            
-            SZ[abs(SZ) < 5e-4] = 0
+                SZ = proximal_operator_mixed_norm(
+                    YSS, lambda_S / cc, rho_val=(1 - group)
+                )
+
+            # SZ[abs(SZ) < 5e-4] = 0
+            breakpoint()
 
             SZ_YS = SZ - YS
             LZ_YL = LZ - YL
@@ -219,20 +247,29 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
 
             # Majorizer gap
             y_AZ = data - AZ
-            f_Z = .5 * (np.dot(y_AZ.flatten().T, y_AZ.flatten()))
-            f_Y = .5 * (np.dot(y_YA.flatten().T, y_YA.flatten()))
-            QdZY = ((cc / 2 * np.linalg.norm(LZ_YL.flatten(), ord=2) ** 2)
-                    + (cc / 2 * np.linalg.norm(SZ_YS.flatten(), ord=2) ** 2))
-            zeta[i] = (f_Y - np.real(np.dot(y_YA.flatten().T, SZ_YS.flatten())
-                       + np.dot(y_YA.flatten().T, LZ_YL.flatten()))
-                       + QdZY - f_Z)
+            f_Z = 0.5 * (np.dot(y_AZ.flatten().T, y_AZ.flatten()))
+            f_Y = 0.5 * (np.dot(y_YA.flatten().T, y_YA.flatten()))
+            QdZY = (cc / 2 * np.linalg.norm(LZ_YL.flatten(), ord=2) ** 2) + (
+                cc / 2 * np.linalg.norm(SZ_YS.flatten(), ord=2) ** 2
+            )
+            # zeta[i] = (
+            #    f_Y
+            #    - np.real(
+            #        np.dot(YS_residual.flatten().T, SZ_YS.flatten())
+            #        + np.dot(y_YA.flatten().T, LZ_YL.flatten())
+            #    )
+            #    + QdZY
+            #    - f_Z
+            # )
 
-            LZs = svd(LZ, full_matrices=False,
-                      compute_uv=False, check_finite=True)
-            COSTCZ = (f_Z + lambda_L * sum(LZs) + np.mean(lambda_S)
-                      * np.linalg.norm(SZ.flatten(), ord=1))
+            LZs = svd(LZ, full_matrices=False, compute_uv=False, check_finite=True)
+            COSTCZ = (
+                f_Z
+                + lambda_L * sum(LZs)
+                + np.mean(lambda_S) * np.linalg.norm(SZ.flatten(), ord=1)
+            )
 
-            if(COSTCZ < COST[i]):
+            if COSTCZ < COST[i]:
                 S = SZ
                 L = LZ
                 A = AZ
@@ -245,17 +282,18 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
                 COSTC = COST[i]
                 mu[i] = 0
 
-            if(mu_in != 1):
+            if mu_in != 1:
                 SS = SO + mu_in * dS
                 LS = LO + mu_in * dL
                 AS = AO + mu_in * dA
 
                 y_AS = data - AS
-                LSs = svd(LS, full_matrices=False,
-                          compute_uv=False, check_finite=True)
-                COSTCS = (np.dot(y_AS.flatten().T, y_AS.flatten()) / 2
-                        + lambda_L * np.sum(LSs) + np.mean(lambda_S)
-                        * np.linalg.norm(SS.flatten(), ord=1))
+                LSs = svd(LS, full_matrices=False, compute_uv=False, check_finite=True)
+                COSTCS = (
+                    np.dot(y_AS.flatten().T, y_AS.flatten()) / 2
+                    + lambda_L * np.sum(LSs)
+                    + np.mean(lambda_S) * np.linalg.norm(SS.flatten(), ord=1)
+                )
 
                 if COSTCS < COSTCZ:
                     if COSTCS < COST[i]:
@@ -272,7 +310,7 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
             delta[i] = -COSTC + COSTCZ
 
             # Overstep
-            eta[i] = 1 + (zeta[i] + delta[i]) / (QdZY + np.finfo(float).eps)
+            # eta[i] = 1 + (zeta[i] + delta[i]) / (QdZY + np.finfo(float).eps)
 
             S_SO = S - SO
             L_LO = L - LO
@@ -282,8 +320,8 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
             AZ_A = AZ - A
 
             # Restart is experimental
-            rest1 = (mu[i] == 0)
-            if((rest1) and restart):
+            rest1 = mu[i] == 0
+            if (rest1) and restart:
                 t[i] = 1
                 SZ_S = 0
                 LZ_L = 0
@@ -305,34 +343,41 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
 
             y_A = data - A
 
-            if(comp_cost):
+            if comp_cost:
                 L2cost[i] = np.dot(y_A.flatten().T, y_A.flatten()) / 2  # Residue
                 L1cost[i] = np.linalg.norm(S.flatten(), ord=1)
-                Ls = svd(L, full_matrices=False,
-                         compute_uv=False, check_finite=True)
+                Ls = svd(L, full_matrices=False, compute_uv=False, check_finite=True)
                 Ncost[i] = np.sum(Ls)
-                COST[i] = L2cost[i] + lambda_L * Ncost[i] + np.mean(lambda_S) * L1cost[i]
+                COST[i] = (
+                    L2cost[i] + lambda_L * Ncost[i] + np.mean(lambda_S) * L1cost[i]
+                )
                 ERR[i] = np.linalg.norm(data.flatten() - A.flatten(), ord=2) / nt
                 # Print some numbers
                 if display:
-                    print(f'mfista-va i={i}, cost={COST[i]:.9f},'
-                          f'err={ERR[i]:.9f}, L={cc:.3f}, mu={mu[i-1]:.3f}, ')
-                    print(f'delta={delta[i-1]:.3f}, zeta={zeta[i-1]:.3f}, '
-                          f'eta={eta[i-1]:.3f}  \n')
+                    print(
+                        f"mfista-va i={i}, cost={COST[i]:.9f},"
+                        f"err={ERR[i]:.9f}, L={cc:.3f}, mu={mu[i-1]:.3f}, "
+                    )
+                    print(
+                        f"delta={delta[i-1]:.3f}, zeta={zeta[i-1]:.3f}, "
+                        f"eta={eta[i-1]:.3f}  \n"
+                    )
 
             else:
                 COST[i] = COSTC
                 if display:
-                    print(f'mfista-va i={i}, L={cc:.3f}, mu={mu[i-1]:.3f}, ')
-                    print(f'delta={delta[i-1]:.3f}, zeta={zeta[i-1]:.3f}, '
-                          f'eta={eta[i-1]:.3f}  \n')
+                    print(f"mfista-va i={i}, L={cc:.3f}, mu={mu[i-1]:.3f}, ")
+                    print(
+                        f"delta={delta[i-1]:.3f}, zeta={zeta[i-1]:.3f}, "
+                        f"eta={eta[i-1]:.3f}  \n"
+                    )
 
             # Force at least 10 itereations with no improvement
             ii = np.min((i + 1, miniter)) - 1
             if (i - ii) == 0:
                 MDIF[i] = np.max(x_diff[i::-1])
             else:
-                MDIF[i] = np.max(x_diff[i:(i - ii - 1):-1])
+                MDIF[i] = np.max(x_diff[i : (i - ii - 1) : -1])
 
             # MSE_iter = np.min(np.sqrt(np.sum(abs(((np.dot(hrf, S) + L) - data)) ** 2, axis=0)) / nt)
 
@@ -341,29 +386,35 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
 
         # END WHILE
 
-        MSE_iter = np.min(np.sqrt(np.sum(abs(((np.dot(hrf, S) + L) - data)) ** 2, axis=0)) / nt)
+        MSE_iter = np.min(
+            np.sqrt(np.sum(abs(((np.dot(hrf, S) + L) - data)) ** 2, axis=0)) / nt
+        )
 
-        print(f'MSE on iter {l_iter+1} is {MSE_iter}')
+        print(f"MSE on iter {l_iter+1} is {MSE_iter}")
         if l_iter == 0:
             MSE = MSE_iter
             counter = 1
         else:
             MSE = np.hstack((MSE, MSE_iter))
             if MSE[l_iter] < tol:
-                print('FISTA has converged!!!')
+                print("FISTA has converged!!!")
 
         if (l_iter > 0) and (MSE[l_iter - 1] == MSE[l_iter]):
             counter += 1
 
-        if (l_iter > 0) and (np.abs(MSE[l_iter - 1] - MSE[l_iter]) <= tol) and (MSE[l_iter - 1] > MSE[l_iter]):
-            print('MSE not improving!!!')
+        if (
+            (l_iter > 0)
+            and (np.abs(MSE[l_iter - 1] - MSE[l_iter]) <= tol)
+            and (MSE[l_iter - 1] > MSE[l_iter])
+        ):
+            print("MSE not improving!!!")
             break
 
         if (l_iter > 0) and (MSE[l_iter - 1] < MSE[l_iter]):
             counter += 1
 
         if counter == 5:
-            print('MSE not improving!!!')
+            print("MSE not improving!!!")
             break
 
         if l_iter == 0:
@@ -384,8 +435,9 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
     # S[global_fluc, :] = 0
 
     # Return eigen vectors we keep.
-    Ut, St, Vt = svd(np.nan_to_num(l_final), full_matrices=False, compute_uv=True,
-                     check_finite=True)
+    Ut, St, Vt = svd(
+        np.nan_to_num(l_final), full_matrices=False, compute_uv=True, check_finite=True
+    )
 
     eig_vecs = Ut[:, :keep_idx]
     mean_eig_vecs = np.mean(eig_vecs, axis=0)
@@ -396,4 +448,4 @@ def low_rank(data, hrf, maxiter=100, miniter=10, vox_2_keep=0.3, nruns=1, lambda
     std_eig_maps = np.expand_dims(np.std(eig_maps, axis=1), axis=1)
     eig_maps = (eig_maps - mean_eig_maps) / std_eig_maps
 
-    return(l_final, S, eig_vecs, eig_maps)
+    return (l_final, S, eig_vecs, eig_maps)
