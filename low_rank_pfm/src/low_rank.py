@@ -110,321 +110,259 @@ def low_rank(
     tol = 1e-6
     restart = False
     comp_cost = False
-    display = False
+    display = True
 
     hrf_trans = hrf.T
     hrf_cov = np.dot(hrf_trans, hrf)
     v = np.dot(hrf_trans, data)
 
     # iterations
-    l_iter = 0
     A = 0
     lambda_S = 0
-    l_final = 0
     keep_idx = 1
 
-    for ii in range(nruns):
+    data[abs(data) < 1e-3] = 0
 
-        data[abs(data) < 1e-3] = 0
+    A = np.dot(hrf, S) + L
 
-        i = 0
+    YL = L.copy()
+    YS = S.copy()
+    YA = A.copy()
 
-        if l_iter == 0:
-            A = np.dot(hrf, S) + L
+    # Initializes cost arrays
+    L2cost = np.zeros((maxiter,))
+    L1cost = np.zeros((maxiter,))
+    Ncost = np.zeros((maxiter,))
+    COST = np.zeros((maxiter,))
+    ERR = np.zeros((maxiter,))
+    MDIF = np.zeros((maxiter,))
+    x_diff = np.zeros((maxiter,))
+    t = np.zeros((maxiter,))
+    # zeta = np.zeros((maxiter,))
+    # eta = np.zeros((maxiter,))
+    # delta = np.zeros((maxiter,))
+    mu = np.zeros((maxiter,))
 
-        L_old = L.copy()
-        YL = L.copy()
-        YS = S.copy()
-        YA = A.copy()
+    Ut, St, Vt = svd(data, full_matrices=False, compute_uv=True, check_finite=True)
 
-        # Initializes cost arrays
-        L2cost = np.zeros((maxiter,))
-        L1cost = np.zeros((maxiter,))
-        Ncost = np.zeros((maxiter,))
-        COST = np.zeros((maxiter,))
-        ERR = np.zeros((maxiter,))
-        MDIF = np.zeros((maxiter,))
-        x_diff = np.zeros((maxiter,))
-        t = np.zeros((maxiter,))
-        # zeta = np.zeros((maxiter,))
-        # eta = np.zeros((maxiter,))
-        # delta = np.zeros((maxiter,))
-        TIM = np.zeros((maxiter,))
-        mu = np.zeros((maxiter,))
+    # keep_idx = np.where(kn.y_difference >= 0.95 * np.max(kn.y_difference))[0][0]
+    St_diff = abs(np.diff(St) / St[1:])
+    keep_diff = np.where(St_diff >= eigen_thr)[0]
 
-        start_time = time.time()
-        TIM[i] = time.time() - start_time
+    keep_idx = 1
+    diff_old = -1
+    for i in range(len(keep_diff)):
+        if (keep_diff[i] - diff_old) == 1:
+            keep_idx = keep_diff[i] + 1
+        else:
+            break
+        diff_old = keep_diff[i]
 
-        # if l_iter == 0:
-        Ut, St, Vt = svd(data, full_matrices=False, compute_uv=True, check_finite=True)
+    lambda_S = noise_est * lambda_weight
 
-        # keep_idx = np.where(kn.y_difference >= 0.95 * np.max(kn.y_difference))[0][0]
-        St_diff = abs(np.diff(St) / St[1:])
-        keep_diff = np.where(St_diff >= eigen_thr)[0]
+    print(f"Keeping {keep_idx} eigenvalues...")
 
-        keep_idx = 1
-        diff_old = -1
-        for i in range(len(keep_diff)):
-            if (keep_diff[i] - diff_old) == 1:
-                keep_idx = keep_diff[i] + 1
-            else:
-                break
-            diff_old = keep_diff[i]
+    lambda_L = St[keep_idx] * 1.01
 
-        if l_iter == 0:
-            lambda_S = noise_est * lambda_weight
+    if is_pfm:
+        lambda_L = 0
 
-        print(f"Keeping {keep_idx} eigenvalues...")
+    St[keep_idx + 1 :] = 0
 
-        lambda_L = St[keep_idx] * 1.01
+    # Residue
+    L2cost[i] = 1 / 2 * np.linalg.norm(data.flatten() - A.flatten(), ord=2) ** 2
+    L1cost[i] = np.linalg.norm(S.flatten(), ord=1)
+    Ls = svd(L, full_matrices=False, compute_uv=False)
+    Ncost[i] = np.sum(Ls)
+    COST[i] = L2cost[i] + lambda_L * Ncost[i] + np.mean(lambda_S) * L1cost[i]
+    # Estimation error
+    ERR[i] = np.linalg.norm(data.flatten() - A.flatten(), ord=2)
 
-        if is_pfm:
-            lambda_L = 0
+    MDIF[i] = 1e20
+    x_diff[i] = MDIF[i]
+    t[i] = 1
 
-        St[keep_idx + 1 :] = 0
+    for i in range(maxiter - 1):
+        # data consistency gradient
+        y_YA = data - YA
 
-        # Residue
-        L2cost[i] = 1 / 2 * np.linalg.norm(data.flatten() - A.flatten(), ord=2) ** 2
-        L1cost[i] = np.linalg.norm(S.flatten(), ord=1)
-        Ls = svd(L, full_matrices=False, compute_uv=False)
-        Ncost[i] = np.sum(Ls)
-        COST[i] = L2cost[i] + lambda_L * Ncost[i] + np.mean(lambda_S) * L1cost[i]
-        # Estimation error
-        ERR[i] = np.linalg.norm(data.flatten() - A.flatten(), ord=2)
+        LO = L.copy()
+        SO = S.copy()
+        AO = A.copy()
 
-        MDIF[i] = 1e20
-        x_diff[i] = MDIF[i]
-        t[i] = 1
-
-        for i in range(maxiter - 1):
-            # data consistency gradient
-            y_YA = data - YA
-
-            LO = L.copy()
-            SO = S.copy()
-            AO = A.copy()
-
-            # Low-rank update
-            if lambda_L != 0:
-                Ut, St, Vt = svd(
-                    np.nan_to_num(YL + (1 / cc) * y_YA),
-                    full_matrices=False,
-                    compute_uv=True,
-                    check_finite=True,
-                )
-                # St = np.diag(SoftThresh(St, lambda_L / cc, is_low_rank=True))
-                St[keep_idx + 1 :] = 0
-                St = np.diag(St)
-                LZ = np.dot(np.dot(Ut, St), Vt)
-            else:
-                LZ = np.zeros((L.shape))
-                YL = np.zeros((L.shape))
-
-            # Sparse update
-            YS_residual = v - np.dot(hrf_cov, YS)
-            YSS = YS + (1 / cc) * YS_residual  # y_YA
-
-            if group == 0:
-                SZ = SoftThresh(YSS, lambda_S / cc)
-            else:
-                SZ = proximal_operator_mixed_norm(
-                    YSS, lambda_S / cc, rho_val=(1 - group)
-                )
-
-            # SZ[abs(SZ) < 5e-4] = 0
-
-            SZ_YS = SZ - YS
-            LZ_YL = LZ - YL
-            AZ_YA = np.dot(hrf, SZ_YS) + LZ_YL
-            AZ = YA + AZ_YA
-
-            dA = AZ - AO
-            dS = SZ - SO
-            dL = LZ - LO
-
-            # Majorizer gap
-            y_AZ = data - AZ
-            f_Z = 0.5 * (np.dot(y_AZ.flatten().T, y_AZ.flatten()))
-            # f_Y = 0.5 * (np.dot(y_YA.flatten().T, y_YA.flatten()))
-            # QdZY = (cc / 2 * np.linalg.norm(LZ_YL.flatten(), ord=2) ** 2) + (
-            # cc / 2 * np.linalg.norm(SZ_YS.flatten(), ord=2) ** 2
-            # )
-            # zeta[i] = (
-            #    f_Y
-            #    - np.real(
-            #        np.dot(YS_residual.flatten().T, SZ_YS.flatten())
-            #        + np.dot(y_YA.flatten().T, LZ_YL.flatten())
-            #    )
-            #    + QdZY
-            #    - f_Z
-            # )
-
-            LZs = svd(LZ, full_matrices=False, compute_uv=False, check_finite=True)
-            COSTCZ = (
-                f_Z
-                + lambda_L * sum(LZs)
-                + np.mean(lambda_S) * np.linalg.norm(SZ.flatten(), ord=1)
+        # Low-rank update
+        if lambda_L != 0:
+            Ut, St, Vt = svd(
+                np.nan_to_num(YL + (1 / cc) * y_YA),
+                full_matrices=False,
+                compute_uv=True,
+                check_finite=True,
             )
+            # St = np.diag(SoftThresh(St, lambda_L / cc, is_low_rank=True))
+            St[keep_idx + 1 :] = 0
+            St = np.diag(St)
+            LZ = np.dot(np.dot(Ut, St), Vt)
+        else:
+            LZ = np.zeros((L.shape))
+            YL = np.zeros((L.shape))
 
-            if COSTCZ < COST[i]:
-                S = SZ
-                L = LZ
-                A = AZ
-                COSTC = COSTCZ
-                mu[i] = 1
-            else:
-                S = SO
-                L = LO
-                A = AO
-                COSTC = COST[i]
-                mu[i] = 0
+        # Sparse update
+        YS_residual = v - np.dot(hrf_cov, YS)
+        YSS = YS + (1 / cc) * YS_residual  # y_YA
 
-            if mu_in != 1:
-                SS = SO + mu_in * dS
-                LS = LO + mu_in * dL
-                AS = AO + mu_in * dA
+        if group == 0:
+            SZ = SoftThresh(YSS, lambda_S / cc)
+        else:
+            SZ = proximal_operator_mixed_norm(YSS, lambda_S / cc, rho_val=(1 - group))
 
-                y_AS = data - AS
-                LSs = svd(LS, full_matrices=False, compute_uv=False, check_finite=True)
-                COSTCS = (
-                    np.dot(y_AS.flatten().T, y_AS.flatten()) / 2
-                    + lambda_L * np.sum(LSs)
-                    + np.mean(lambda_S) * np.linalg.norm(SS.flatten(), ord=1)
-                )
+        # SZ[abs(SZ) < 5e-4] = 0
 
-                if COSTCS < COSTCZ:
-                    if COSTCS < COST[i]:
-                        S = SS
-                        L = LS
-                        A = AS
-                        COSTC = COSTCS
-                        mu[i] = mu_in
-            # S_nonzero = np.count_nonzero(S, axis=1)
-            # global_fluc = np.where(S_nonzero > nvox * vox_2_keep)[0]
-            # S[global_fluc, :] = 0
+        SZ_YS = SZ - YS
+        LZ_YL = LZ - YL
+        AZ_YA = np.dot(hrf, SZ_YS) + LZ_YL
+        AZ = YA + AZ_YA
 
-            # Alpha step gap
-            # delta[i] = -COSTC + COSTCZ
+        dA = AZ - AO
+        dS = SZ - SO
+        dL = LZ - LO
 
-            # Overstep
-            # eta[i] = 1 + (zeta[i] + delta[i]) / (QdZY + np.finfo(float).eps)
+        # Majorizer gap
+        y_AZ = data - AZ
+        f_Z = 0.5 * (np.dot(y_AZ.flatten().T, y_AZ.flatten()))
+        # f_Y = 0.5 * (np.dot(y_YA.flatten().T, y_YA.flatten()))
+        # QdZY = (cc / 2 * np.linalg.norm(LZ_YL.flatten(), ord=2) ** 2) + (
+        # cc / 2 * np.linalg.norm(SZ_YS.flatten(), ord=2) ** 2
+        # )
+        # zeta[i] = (
+        #    f_Y
+        #    - np.real(
+        #        np.dot(YS_residual.flatten().T, SZ_YS.flatten())
+        #        + np.dot(y_YA.flatten().T, LZ_YL.flatten())
+        #    )
+        #    + QdZY
+        #    - f_Z
+        # )
 
-            S_SO = S - SO
-            L_LO = L - LO
-            A_AO = A - AO
-            SZ_S = SZ - S
-            LZ_L = LZ - L
-            AZ_A = AZ - A
-
-            # Restart is experimental
-            rest1 = mu[i] == 0
-            if (rest1) and restart:
-                t[i] = 1
-                SZ_S = 0
-                LZ_L = 0
-                AZ_A = 0
-
-            t[i + 1] = (1 + np.sqrt(1 + 4 * t[i] ** 2)) / 2  # Combination parameter
-
-            t1 = (t[i] - 1) / t[i + 1]
-            t2 = t[i] / t[i + 1]
-            # t3 = (t[i] / t[i + 1]) * (eta[i] - 1)
-
-            YS = S + t1 * (S_SO) + t2 * (SZ_S)  # + t3 * (SZ_YS)
-            YL = L + t1 * (L_LO) + t2 * (LZ_L)  # + t3 * (LZ_YL)
-            YA = A + t1 * (A_AO) + t2 * (AZ_A)  # + t3 * (AZ_YA)
-
-            i += 1
-
-            TIM[i] = time.time() - start_time
-
-            y_A = data - A
-
-            if update_lambda:
-                nv = np.sqrt(np.sum((np.dot(hrf, S) - data) ** 2, axis=0) / nt)
-
-                if all(abs(nv - noise_est) > (tol / 1e5)):
-                    lambda_old = lambda_S
-                    lambda_S = lambda_S * noise_est / nv
-
-            if comp_cost:
-                L2cost[i] = np.dot(y_A.flatten().T, y_A.flatten()) / 2  # Residue
-                L1cost[i] = np.linalg.norm(S.flatten(), ord=1)
-                Ls = svd(L, full_matrices=False, compute_uv=False, check_finite=True)
-                Ncost[i] = np.sum(Ls)
-                COST[i] = (
-                    L2cost[i] + lambda_L * Ncost[i] + np.mean(lambda_S) * L1cost[i]
-                )
-                ERR[i] = np.linalg.norm(data.flatten() - A.flatten(), ord=2) / nt
-                # Print some numbers
-                if display:
-                    print(
-                        f"mfista-va i={i}, cost={COST[i]:.9f},"
-                        f"err={ERR[i]:.9f}, L={cc:.3f}, mu={mu[i-1]:.3f} \n"
-                    )
-
-            else:
-                COST[i] = COSTC
-                if display:
-                    print(f"mfista-va i={i}, L={cc:.3f}, mu={mu[i-1]:.3f} \n")
-
-            # Force at least 10 itereations with no improvement
-            ii = np.min((i + 1, miniter)) - 1
-            if (i - ii) == 0:
-                MDIF[i] = np.max(x_diff[i::-1])
-            else:
-                MDIF[i] = np.max(x_diff[i : (i - ii - 1) : -1])
-
-            # MSE_iter = np.min(np.sqrt(np.sum(abs(((np.dot(hrf, S) + L) - data)) ** 2, axis=0)) / nt)
-
-            if i > (miniter - 1) and (ERR[i] - ERR[i - 1]) < tol:
-                break
-
-        # END WHILE
-
-        MSE_iter = np.min(
-            np.sqrt(np.sum(abs(((np.dot(hrf, S) + L) - data)) ** 2, axis=0)) / nt
+        LZs = svd(LZ, full_matrices=False, compute_uv=False, check_finite=True)
+        COSTCZ = (
+            f_Z
+            + lambda_L * sum(LZs)
+            + np.mean(lambda_S) * np.linalg.norm(SZ.flatten(), ord=1)
         )
 
-        print(f"MSE on iter {l_iter+1} is {MSE_iter}")
-        if l_iter == 0:
-            MSE = MSE_iter
-            counter = 1
+        if COSTCZ < COST[i]:
+            S = SZ
+            L = LZ
+            A = AZ
+            COSTC = COSTCZ
+            mu[i] = 1
         else:
-            MSE = np.hstack((MSE, MSE_iter))
-            if MSE[l_iter] < tol:
-                print("FISTA has converged!!!")
+            S = SO
+            L = LO
+            A = AO
+            COSTC = COST[i]
+            mu[i] = 0
 
-        if (l_iter > 0) and (MSE[l_iter - 1] == MSE[l_iter]):
-            counter += 1
+        if mu_in != 1:
+            SS = SO + mu_in * dS
+            LS = LO + mu_in * dL
+            AS = AO + mu_in * dA
 
-        if (
-            (l_iter > 0)
-            and (np.abs(MSE[l_iter - 1] - MSE[l_iter]) <= tol)
-            and (MSE[l_iter - 1] > MSE[l_iter])
-        ):
-            print("MSE not improving!!!")
-            break
+            y_AS = data - AS
+            LSs = svd(LS, full_matrices=False, compute_uv=False, check_finite=True)
+            COSTCS = (
+                np.dot(y_AS.flatten().T, y_AS.flatten()) / 2
+                + lambda_L * np.sum(LSs)
+                + np.mean(lambda_S) * np.linalg.norm(SS.flatten(), ord=1)
+            )
 
-        if (l_iter > 0) and (MSE[l_iter - 1] < MSE[l_iter]):
-            counter += 1
+            if COSTCS < COSTCZ:
+                if COSTCS < COST[i]:
+                    S = SS
+                    L = LS
+                    A = AS
+                    COSTC = COSTCS
+                    mu[i] = mu_in
+        # S_nonzero = np.count_nonzero(S, axis=1)
+        # global_fluc = np.where(S_nonzero > nvox * vox_2_keep)[0]
+        # S[global_fluc, :] = 0
 
-        if counter == 5:
-            print("MSE not improving!!!")
-            break
+        # Alpha step gap
+        # delta[i] = -COSTC + COSTCZ
 
-        if l_iter == 0:
-            l_final = L.copy()
+        # Overstep
+        # eta[i] = 1 + (zeta[i] + delta[i]) / (QdZY + np.finfo(float).eps)
+
+        S_SO = S - SO
+        L_LO = L - LO
+        A_AO = A - AO
+        SZ_S = SZ - S
+        LZ_L = LZ - L
+        AZ_A = AZ - A
+
+        # Restart is experimental
+        rest1 = mu[i] == 0
+        if (rest1) and restart:
+            t[i] = 1
+            SZ_S = 0
+            LZ_L = 0
+            AZ_A = 0
+
+        t[i + 1] = (1 + np.sqrt(1 + 4 * t[i] ** 2)) / 2  # Combination parameter
+
+        t1 = (t[i] - 1) / t[i + 1]
+        t2 = t[i] / t[i + 1]
+        # t3 = (t[i] / t[i + 1]) * (eta[i] - 1)
+
+        YS = S + t1 * (S_SO) + t2 * (SZ_S)  # + t3 * (SZ_YS)
+        YL = L + t1 * (L_LO) + t2 * (LZ_L)  # + t3 * (LZ_YL)
+        YA = A + t1 * (A_AO) + t2 * (AZ_A)  # + t3 * (AZ_YA)
+
+        y_A = data - A
+
+        if update_lambda:
+            nv = np.sqrt(np.sum((np.dot(hrf, S) - data) ** 2, axis=0) / nt)
+
+            if all(abs(nv - noise_est) > (tol / 1e5)):
+                lambda_old = lambda_S
+                lambda_S = lambda_S * noise_est / nv
+
+        if comp_cost:
+            L2cost[i] = np.dot(y_A.flatten().T, y_A.flatten()) / 2  # Residue
+            L1cost[i] = np.linalg.norm(S.flatten(), ord=1)
+            Ls = svd(L, full_matrices=False, compute_uv=False, check_finite=True)
+            Ncost[i] = np.sum(Ls)
+            COST[i] = L2cost[i] + lambda_L * Ncost[i] + np.mean(lambda_S) * L1cost[i]
+            ERR[i] = np.linalg.norm(data.flatten() - A.flatten(), ord=2) / nt
+            # Print some numbers
+            if display:
+                print(
+                    f"mfista-va i={i}, cost={COST[i]:.9f},"
+                    f"err={ERR[i]:.9f}, L={cc:.3f}, mu={mu[i-1]:.3f} \n"
+                )
+
         else:
-            l_final = L + L_old
-            # break
+            COST[i] = COSTC
+            if display:
+                print(f"mfista-va i={i}, L={cc:.3f}, mu={mu[i-1]:.3f} \n")
 
-        l_iter += 1
-        if l_iter == 0:
+        # Force at least 10 itereations with no improvement
+        ii = np.min((i + 1, miniter)) - 1
+        if (i - ii) == 0:
+            MDIF[i] = np.max(x_diff[i::-1])
+        else:
+            MDIF[i] = np.max(x_diff[i : (i - ii - 1) : -1])
+
+        if i > (miniter - 1) and (ERR[i] - ERR[i - 1]) < tol:
             break
-        # MSE_iter = np.sqrt(np.sum(((np.dot(hrf, S) + L) - data) ** 2, axis=0) / nt)
-        data = data - L
+
     # END WHILE
+
+    MSE_iter = np.min(
+        np.sqrt(np.sum(abs(((np.dot(hrf, S) + L) - data)) ** 2, axis=0)) / nt
+    )
+
+    print(f"MSE is {MSE_iter}")
 
     # S_nonzero = np.count_nonzero(S, axis=1)
     # global_fluc = np.where(S_nonzero > nvox * vox_2_keep)[0]
@@ -432,7 +370,7 @@ def low_rank(
 
     # Return eigen vectors we keep.
     Ut, St, Vt = svd(
-        np.nan_to_num(l_final), full_matrices=False, compute_uv=True, check_finite=True
+        np.nan_to_num(L), full_matrices=False, compute_uv=True, check_finite=True
     )
 
     eig_vecs = Ut[:, :keep_idx]
@@ -444,4 +382,4 @@ def low_rank(
     std_eig_maps = np.expand_dims(np.std(eig_maps, axis=1), axis=1)
     eig_maps = (eig_maps - mean_eig_maps) / std_eig_maps
 
-    return (l_final, S, eig_vecs, eig_maps)
+    return (L, S, eig_vecs, eig_maps)

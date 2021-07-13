@@ -134,10 +134,19 @@ def low_rank_pfm(
     S_output_filename = f"{output_filename}_beta.nii.gz"
     S_nib.to_filename(S_output_filename)
 
-    S_fitts_reshaped = reshape_data(S_fitts, dims, mask_idxs)
-    S_fitts_nib = nib.Nifti1Image(S_fitts_reshaped, None, header=data_header)
-    S_fitts_output_filename = f"{output_filename}_fitts.nii.gz"
-    S_fitts_nib.to_filename(S_fitts_output_filename)
+    if n_te == 1:
+        S_fitts_reshaped = reshape_data(S_fitts, dims, mask_idxs)
+        S_fitts_nib = nib.Nifti1Image(S_fitts_reshaped, None, header=data_header)
+        S_fitts_output_filename = f"{output_filename}_fitts.nii.gz"
+        S_fitts_nib.to_filename(S_fitts_output_filename)
+    elif n_te > 1:
+        for te_idx in range(n_te):
+            S_fitts_reshaped = reshape_data(
+                S_fitts[te_idx * nscans : (te_idx + 1) * nscans, :], dims, mask_idxs
+            )
+            S_fitts_nib = nib.Nifti1Image(S_fitts_reshaped, None, header=data_header)
+            S_fitts_output_filename = f"{output_filename}_fitts_E0{te_idx + 1}.nii.gz"
+            S_fitts_nib.to_filename(S_fitts_output_filename)
 
     if is_pfm is False:
         # Saving eigen vectors and maps
