@@ -2,7 +2,6 @@ import time
 
 import numpy as np
 from pywt import wavedec
-from scipy import stats
 from scipy.linalg import norm, svd
 
 
@@ -61,6 +60,7 @@ def low_rank(
     group=0,
     eigen_thr=0.25,
     is_pfm=False,
+    update_lambda=True,
 ):
     """
     L+S reconstruction of undersampled dynamic MRI data using iterative
@@ -96,9 +96,7 @@ def low_rank(
     nvox = data.shape[1]
 
     _, cD1 = wavedec(data, "db3", level=1, axis=0)
-
-    noise_est = stats.median_absolute_deviation(cD1) / 0.6745
-    nv_2_save = np.zeros((nvox, 50))
+    noise_est = np.median(abs(cD1 - np.median(cD1))) / 0.6745
 
     if n_te == 1:
         L = np.zeros((nt, nvox))
@@ -107,12 +105,12 @@ def low_rank(
     S = np.zeros((nt, nvox))
 
     # algorithm parameters
-    cc = norm(hrf ** 2)
+    cc = norm(hrf[:nt, :nt]) ** 2
     mu_in = 1.5
     tol = 1e-6
     restart = False
     comp_cost = False
-    display = True
+    display = False
 
     hrf_trans = hrf.T
     hrf_cov = np.dot(hrf_trans, hrf)
@@ -148,9 +146,9 @@ def low_rank(
         MDIF = np.zeros((maxiter,))
         x_diff = np.zeros((maxiter,))
         t = np.zeros((maxiter,))
-        zeta = np.zeros((maxiter,))
-        eta = np.zeros((maxiter,))
-        delta = np.zeros((maxiter,))
+        # zeta = np.zeros((maxiter,))
+        # eta = np.zeros((maxiter,))
+        # delta = np.zeros((maxiter,))
         TIM = np.zeros((maxiter,))
         mu = np.zeros((maxiter,))
 
@@ -182,9 +180,7 @@ def low_rank(
 
         if is_pfm:
             lambda_L = 0
-        nv = np.ones((nvox,))
 
-        nv_2_save[:, l_iter] = nv
         St[keep_idx + 1 :] = 0
 
         # Residue
@@ -216,7 +212,9 @@ def low_rank(
                     compute_uv=True,
                     check_finite=True,
                 )
-                St = np.diag(SoftThresh(St, lambda_L / cc, is_low_rank=True))
+                # St = np.diag(SoftThresh(St, lambda_L / cc, is_low_rank=True))
+                St[keep_idx + 1 :] = 0
+                St = np.diag(St)
                 LZ = np.dot(np.dot(Ut, St), Vt)
             else:
                 LZ = np.zeros((L.shape))
@@ -234,7 +232,6 @@ def low_rank(
                 )
 
             # SZ[abs(SZ) < 5e-4] = 0
-            breakpoint()
 
             SZ_YS = SZ - YS
             LZ_YL = LZ - YL
@@ -248,10 +245,10 @@ def low_rank(
             # Majorizer gap
             y_AZ = data - AZ
             f_Z = 0.5 * (np.dot(y_AZ.flatten().T, y_AZ.flatten()))
-            f_Y = 0.5 * (np.dot(y_YA.flatten().T, y_YA.flatten()))
-            QdZY = (cc / 2 * np.linalg.norm(LZ_YL.flatten(), ord=2) ** 2) + (
-                cc / 2 * np.linalg.norm(SZ_YS.flatten(), ord=2) ** 2
-            )
+            # f_Y = 0.5 * (np.dot(y_YA.flatten().T, y_YA.flatten()))
+            # QdZY = (cc / 2 * np.linalg.norm(LZ_YL.flatten(), ord=2) ** 2) + (
+            # cc / 2 * np.linalg.norm(SZ_YS.flatten(), ord=2) ** 2
+            # )
             # zeta[i] = (
             #    f_Y
             #    - np.real(
@@ -307,7 +304,7 @@ def low_rank(
             # S[global_fluc, :] = 0
 
             # Alpha step gap
-            delta[i] = -COSTC + COSTCZ
+            # delta[i] = -COSTC + COSTCZ
 
             # Overstep
             # eta[i] = 1 + (zeta[i] + delta[i]) / (QdZY + np.finfo(float).eps)
@@ -331,17 +328,24 @@ def low_rank(
 
             t1 = (t[i] - 1) / t[i + 1]
             t2 = t[i] / t[i + 1]
-            t3 = (t[i] / t[i + 1]) * (eta[i] - 1)
+            # t3 = (t[i] / t[i + 1]) * (eta[i] - 1)
 
-            YS = S + t1 * (S_SO) + t2 * (SZ_S) + t3 * (SZ_YS)
-            YL = L + t1 * (L_LO) + t2 * (LZ_L) + t3 * (LZ_YL)
-            YA = A + t1 * (A_AO) + t2 * (AZ_A) + t3 * (AZ_YA)
+            YS = S + t1 * (S_SO) + t2 * (SZ_S)  # + t3 * (SZ_YS)
+            YL = L + t1 * (L_LO) + t2 * (LZ_L)  # + t3 * (LZ_YL)
+            YA = A + t1 * (A_AO) + t2 * (AZ_A)  # + t3 * (AZ_YA)
 
             i += 1
 
             TIM[i] = time.time() - start_time
 
             y_A = data - A
+
+            if update_lambda:
+                nv = np.sqrt(np.sum((np.dot(hrf, S) - data) ** 2, axis=0) / nt)
+
+                if all(abs(nv - noise_est) > (tol / 1e5)):
+                    lambda_old = lambda_S
+                    lambda_S = lambda_S * noise_est / nv
 
             if comp_cost:
                 L2cost[i] = np.dot(y_A.flatten().T, y_A.flatten()) / 2  # Residue
@@ -356,21 +360,13 @@ def low_rank(
                 if display:
                     print(
                         f"mfista-va i={i}, cost={COST[i]:.9f},"
-                        f"err={ERR[i]:.9f}, L={cc:.3f}, mu={mu[i-1]:.3f}, "
-                    )
-                    print(
-                        f"delta={delta[i-1]:.3f}, zeta={zeta[i-1]:.3f}, "
-                        f"eta={eta[i-1]:.3f}  \n"
+                        f"err={ERR[i]:.9f}, L={cc:.3f}, mu={mu[i-1]:.3f} \n"
                     )
 
             else:
                 COST[i] = COSTC
                 if display:
-                    print(f"mfista-va i={i}, L={cc:.3f}, mu={mu[i-1]:.3f}, ")
-                    print(
-                        f"delta={delta[i-1]:.3f}, zeta={zeta[i-1]:.3f}, "
-                        f"eta={eta[i-1]:.3f}  \n"
-                    )
+                    print(f"mfista-va i={i}, L={cc:.3f}, mu={mu[i-1]:.3f} \n")
 
             # Force at least 10 itereations with no improvement
             ii = np.min((i + 1, miniter)) - 1
