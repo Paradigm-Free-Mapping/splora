@@ -1,5 +1,3 @@
-import time
-
 import numpy as np
 from pywt import wavedec
 from scipy.linalg import norm, svd
@@ -102,6 +100,7 @@ def low_rank(
         L = np.zeros((nt, nvox))
     else:
         L = np.zeros((n_te * nt, nvox))
+
     S = np.zeros((nt, nvox))
 
     # algorithm parameters
@@ -111,6 +110,7 @@ def low_rank(
     restart = False
     comp_cost = False
     display = True
+
 
     hrf_trans = hrf.T
     hrf_cov = np.dot(hrf_trans, hrf)
