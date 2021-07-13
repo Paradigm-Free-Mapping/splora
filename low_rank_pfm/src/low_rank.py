@@ -96,7 +96,7 @@ def low_rank(
     nvox = data.shape[1]
 
     _, cD1 = wavedec(data, "db3", level=1, axis=0)
-    noise_est = np.median(abs(cD1 - np.median(cD1))) / 0.6745
+    noise_est = np.median(abs(cD1 - np.median(cD1, axis=0)), axis=0) / 0.6745
 
     if n_te == 1:
         L = np.zeros((nt, nvox))
@@ -105,7 +105,7 @@ def low_rank(
     S = np.zeros((nt, nvox))
 
     # algorithm parameters
-    cc = norm(hrf[:nt, :nt]) ** 2
+    cc = norm(hrf) ** 2
     mu_in = 1.5
     tol = 1e-6
     restart = False
@@ -118,10 +118,9 @@ def low_rank(
 
     # iterations
     A = 0
-    lambda_S = 0
     keep_idx = 1
 
-    data[abs(data) < 1e-3] = 0
+    # data[abs(data) < 1e-3] = 0
 
     A = np.dot(hrf, S) + L
 
@@ -135,8 +134,6 @@ def low_rank(
     Ncost = np.zeros((maxiter,))
     COST = np.zeros((maxiter,))
     ERR = np.zeros((maxiter,))
-    MDIF = np.zeros((maxiter,))
-    x_diff = np.zeros((maxiter,))
     t = np.zeros((maxiter,))
     # zeta = np.zeros((maxiter,))
     # eta = np.zeros((maxiter,))
@@ -145,7 +142,6 @@ def low_rank(
 
     Ut, St, Vt = svd(data, full_matrices=False, compute_uv=True, check_finite=True)
 
-    # keep_idx = np.where(kn.y_difference >= 0.95 * np.max(kn.y_difference))[0][0]
     St_diff = abs(np.diff(St) / St[1:])
     keep_diff = np.where(St_diff >= eigen_thr)[0]
 
@@ -178,8 +174,6 @@ def low_rank(
     # Estimation error
     ERR[i] = np.linalg.norm(data.flatten() - A.flatten(), ord=2)
 
-    MDIF[i] = 1e20
-    x_diff[i] = MDIF[i]
     t[i] = 1
 
     for i in range(maxiter - 1):
@@ -347,12 +341,6 @@ def low_rank(
                 print(f"mfista-va i={i}, L={cc:.3f}, mu={mu[i-1]:.3f} \n")
 
         # Force at least 10 itereations with no improvement
-        ii = np.min((i + 1, miniter)) - 1
-        if (i - ii) == 0:
-            MDIF[i] = np.max(x_diff[i::-1])
-        else:
-            MDIF[i] = np.max(x_diff[i : (i - ii - 1) : -1])
-
         if i > (miniter - 1) and (ERR[i] - ERR[i - 1]) < tol:
             break
 
