@@ -103,8 +103,6 @@ def fista(
     A = L.copy()
     data_fidelity = L.copy()
 
-    nv = np.zeros((max_iter, nvoxels))
-
     keep_idx = 1
     t_fista = 1
 
@@ -170,12 +168,12 @@ def fista(
         data_fidelity = y - y_fista_A
 
         # Residuals
-        nv[num_iter, :] = np.sqrt(np.sum((np.dot(X, S) + L - y) ** 2, axis=0) / nscans)
+        nv = np.sqrt(np.sum((np.dot(X, S) + L - y) ** 2, axis=0) / nscans)
 
         # Convergence
         if num_iter >= min_iter:
             if (
-                any(abs(nv[num_iter] - noise_estimate) < precision)
+                any(abs(nv - noise_estimate) < precision)
                 and lambda_crit == "mad_update"
             ):
                 break
@@ -186,7 +184,7 @@ def fista(
 
         # Update lambda
         if update_lambda:
-            lambda_S = lambda_S * noise_estimate / nv[num_iter]
+            lambda_S = lambda_S * noise_estimate / nv
 
     # Extract low-rank maps and time-series
     Ut, St, Vt = linalg.svd(
