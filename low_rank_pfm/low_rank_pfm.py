@@ -9,7 +9,6 @@ from low_rank_pfm.cli.run import _get_parser
 from low_rank_pfm.io import read_data, reshape_data, update_history
 from low_rank_pfm.src.fista import fista
 from low_rank_pfm.src.hrf_matrix import HRFMatrix
-from low_rank_pfm.src.low_rank import low_rank
 
 
 def debiasing(x, y, beta, thr=1e-3):
@@ -62,6 +61,7 @@ def low_rank_pfm(
     group=0,
     do_debias=False,
     is_pfm=False,
+    lambda_crit="mad_update",
 ):
     """
     Low-rank PFM main function.
@@ -106,7 +106,7 @@ def low_rank_pfm(
     hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
 
     S, L, eigen_vecs, eigen_maps = fista(
-        X=hrf_norm, y=data_masked, nscans=nscans, n_te=n_te
+        X=hrf_norm, y=data_masked, nscans=nscans, n_te=n_te, lambda_crit=lambda_crit
     )
 
     # Debiasing

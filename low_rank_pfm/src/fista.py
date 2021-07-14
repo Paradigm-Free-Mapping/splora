@@ -122,7 +122,7 @@ def fista(
             break
         diff_old = keep_diff[i]
 
-    print(f"{keep_idx + 1} low-rank components found.")
+    print(f"{keep_idx} low-rank components found.")
 
     # Select lambda for each voxel based on criteria
     lambda_S, update_lambda, noise_estimate = select_lambda(X, y, criteria=lambda_crit)
@@ -174,10 +174,15 @@ def fista(
 
         # Convergence
         if num_iter >= min_iter:
-            if any(abs(nv[num_iter] - noise_estimate) < precision):
+            if (
+                any(abs(nv[num_iter] - noise_estimate) < precision)
+                and lambda_crit == "mad_update"
+            ):
                 break
-            elif abs(S_old - S) < tol:
-                break
+            else:
+                diff = (abs(S_old - S) < tol).flatten()
+                if (np.sum(diff) / len(diff)) > 0.5:
+                    break
 
         # Update lambda
         if update_lambda:
@@ -189,6 +194,7 @@ def fista(
     )
 
     # Normalize low-rank maps and time-series
+    breakpoint()
     eig_vecs = Ut[:, :keep_idx]
     mean_eig_vecs = np.mean(eig_vecs, axis=0)
     std_eig_vecs = np.std(eig_vecs, axis=0)
