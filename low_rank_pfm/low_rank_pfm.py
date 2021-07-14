@@ -7,6 +7,7 @@ import scipy as sci
 
 from low_rank_pfm.cli.run import _get_parser
 from low_rank_pfm.io import read_data, reshape_data, update_history
+from low_rank_pfm.src.fista import fista
 from low_rank_pfm.src.hrf_matrix import HRFMatrix
 from low_rank_pfm.src.low_rank import low_rank
 
@@ -104,15 +105,8 @@ def low_rank_pfm(
     hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, has_integrator=False)
     hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
 
-    L, S, eigen_vecs, eigen_maps = low_rank(
-        data=data_masked,
-        hrf=hrf_norm,
-        nt=nscans,
-        n_te=n_te,
-        lambda_weight=lambda_weight,
-        group=group,
-        eigen_thr=eigthr,
-        is_pfm=is_pfm,
+    S, L, eigen_vecs, eigen_maps = fista(
+        X=hrf_norm, y=data_masked, nscans=nscans, n_te=n_te
     )
 
     # Debiasing
