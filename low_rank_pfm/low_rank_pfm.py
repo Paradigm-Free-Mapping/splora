@@ -62,17 +62,38 @@ def low_rank_pfm(
     do_debias=False,
     is_pfm=False,
     lambda_crit="mad_update",
+    factor=1,
 ):
-    """
-    Low-rank PFM main function.
+    """Low-rank PFM main function.
 
-    Args:
-        data_filename ([type]): [description]
-        mask_filename ([type]): [description]
-        output_filename ([type]): [description]
-        tr ([type]): [description]
-        te (list, optional): [description]. Defaults to [0].
-        thr ([type], optional): [description]. Defaults to 1e-3.
+    Parameters
+    ----------
+    data_filename : [type]
+        [description]
+    mask_filename : [type]
+        [description]
+    output_filename : [type]
+        [description]
+    tr : [type]
+        [description]
+    te : list, optional
+        [description], by default [0]
+    thr : [type], optional
+        [description], by default 1e-3
+    eigthr : float, optional
+        [description], by default 0.25
+    lambda_weight : float, optional
+        [description], by default 1.1
+    group : int, optional
+        [description], by default 0
+    do_debias : bool, optional
+        [description], by default False
+    is_pfm : bool, optional
+        [description], by default False
+    lambda_crit : str, optional
+        [description], by default "mad_update"
+    factor : int, optional
+        [description], by default 1
     """
     te_str = str(te).strip("[]")
     arguments = f"-i {data_filename} -m {mask_filename} -o {output_filename} -tr {tr} "
@@ -106,7 +127,12 @@ def low_rank_pfm(
     hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
 
     S, L, eigen_vecs, eigen_maps = fista(
-        X=hrf_norm, y=data_masked, nscans=nscans, n_te=n_te, lambda_crit=lambda_crit
+        X=hrf_norm,
+        y=data_masked,
+        nscans=nscans,
+        n_te=n_te,
+        lambda_crit=lambda_crit,
+        factor=factor,
     )
 
     # Debiasing
@@ -122,17 +148,20 @@ def low_rank_pfm(
     L_nib = nib.Nifti1Image(L_reshaped, None, header=data_header)
     L_output_filename = f"{output_filename}_fluc.nii.gz"
     L_nib.to_filename(L_output_filename)
+    update_history(L_output_filename, command_str)
 
     S_reshaped = reshape_data(S_deb, dims, mask_idxs)
     S_nib = nib.Nifti1Image(S_reshaped, None, header=data_header)
     S_output_filename = f"{output_filename}_beta.nii.gz"
     S_nib.to_filename(S_output_filename)
+    update_history(S_output_filename, command_str)
 
     if n_te == 1:
         S_fitts_reshaped = reshape_data(S_fitts, dims, mask_idxs)
         S_fitts_nib = nib.Nifti1Image(S_fitts_reshaped, None, header=data_header)
         S_fitts_output_filename = f"{output_filename}_fitts.nii.gz"
         S_fitts_nib.to_filename(S_fitts_output_filename)
+        update_history(S_fitts_output_filename, command_str)
     elif n_te > 1:
         for te_idx in range(n_te):
             S_fitts_reshaped = reshape_data(
@@ -141,6 +170,7 @@ def low_rank_pfm(
             S_fitts_nib = nib.Nifti1Image(S_fitts_reshaped, None, header=data_header)
             S_fitts_output_filename = f"{output_filename}_fitts_E0{te_idx + 1}.nii.gz"
             S_fitts_nib.to_filename(S_fitts_output_filename)
+            update_history(S_fitts_output_filename, command_str)
 
     if is_pfm is False:
         # Saving eigen vectors and maps
@@ -157,13 +187,6 @@ def low_rank_pfm(
             eigen_map_nib.to_filename(eigen_map_output_filename)
 
     print("Results saved.")
-
-    print("Updating file history...")
-    update_history(L_output_filename, command_str)
-    update_history(S_output_filename, command_str)
-    update_history(S_fitts_output_filename, command_str)
-    print("File history updated.")
-
     print("Low-Rank and Sparse PFM finished.")
 
 
