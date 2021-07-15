@@ -1,5 +1,0 @@
-nilearn
-numpy
-PyWavelets
-scipy
-sklearn
