@@ -44,7 +44,7 @@ def proximal_operator_mixed_norm(y, lambda_val, rho_val=0.8, groups="space"):
     return x
 
 
-def select_lambda(x, y, criteria="mad_update", pcg="0.7"):
+def select_lambda(x, y, criteria="mad_update", factor=1, pcg="0.7"):
     """
     Select lambda.
     """
@@ -65,6 +65,8 @@ def select_lambda(x, y, criteria="mad_update", pcg="0.7"):
         lambda_selec = noise_estimate * np.sqrt(
             2 * np.log10(nt) - np.log10(1 + 4 * np.log10(nt))
         )
+    elif criteria == "factor":
+        lambda_selec = noise_estimate * factor
     elif criteria == "pcg":
         max_lambda = np.mean(abs(np.dot(x.T, y)), axis=0)
         lambda_selec = max_lambda * pcg
@@ -83,6 +85,7 @@ def fista(
     precision=None,
     eigen_thr=0.1,
     tol=1e-6,
+    factor=1,
 ):
 
     nvoxels = y.shape[1]
@@ -123,7 +126,9 @@ def fista(
     print(f"{keep_idx} low-rank components found.")
 
     # Select lambda for each voxel based on criteria
-    lambda_S, update_lambda, noise_estimate = select_lambda(X, y, criteria=lambda_crit)
+    lambda_S, update_lambda, noise_estimate = select_lambda(
+        X, y, factor=factor, criteria=lambda_crit
+    )
 
     if precision is None:
         precision = noise_estimate / 100000
@@ -186,13 +191,15 @@ def fista(
         if update_lambda:
             lambda_S = lambda_S * noise_estimate / nv
 
+    # Remove everything below tolerance
+    S[S < tol] = 0
+
     # Extract low-rank maps and time-series
     Ut, St, Vt = linalg.svd(
         np.nan_to_num(L), full_matrices=False, compute_uv=True, check_finite=True
     )
 
     # Normalize low-rank maps and time-series
-    breakpoint()
     eig_vecs = Ut[:, :keep_idx]
     mean_eig_vecs = np.mean(eig_vecs, axis=0)
     std_eig_vecs = np.std(eig_vecs, axis=0)

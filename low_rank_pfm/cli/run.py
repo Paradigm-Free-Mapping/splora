@@ -115,9 +115,17 @@ def _get_parser():
         "--criteria",
         dest="lambda_crit",
         type=str,
-        choices=["mad", "mad_update", "ut", "lut", "pcg"],
+        choices=["mad", "mad_update", "ut", "lut", "factor", "pcg"],
         help="Criteria with which lambda is selected to estimate activity-inducing and innovation signals.",
         default="mad_update",
+    )
+    optional.add_argument(
+        "-factor",
+        "--factor",
+        dest="factor",
+        type=float,
+        help="Factor to multiply noise estimate for lambda selection.",
+        default=1,
     )
     optional.add_argument(
         "-v", "--version", action="version", version=("%(prog)s " + __version__)
