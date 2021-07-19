@@ -1,4 +1,5 @@
 """Main."""
+from hashlib import new
 import sys
 
 import nibabel as nib
@@ -6,7 +7,7 @@ import numpy as np
 import scipy as sci
 
 from low_rank_pfm.cli.run import _get_parser
-from low_rank_pfm.io import read_data, reshape_data, update_history
+from low_rank_pfm.io import read_data, reshape_data, update_history, new_nii_like
 from low_rank_pfm.src.fista import fista
 from low_rank_pfm.src.hrf_matrix import HRFMatrix
 
@@ -144,30 +145,35 @@ def low_rank_pfm(
 
     print("Saving results...")
     # Save estimated fluctuations
-    L_reshaped = reshape_data(L, dims, mask_idxs)
-    L_nib = nib.Nifti1Image(L_reshaped, None, header=data_header)
+    # L_reshaped = reshape_data(L, dims, mask_idxs)
+    # L_nib = nib.Nifti1Image(L_reshaped, None, header=data_header)
+    L_nib = new_nii_like(data_filename, L.T)
     L_output_filename = f"{output_filename}_fluc.nii.gz"
     L_nib.to_filename(L_output_filename)
     update_history(L_output_filename, command_str)
 
-    S_reshaped = reshape_data(S_deb, dims, mask_idxs)
-    S_nib = nib.Nifti1Image(S_reshaped, None, header=data_header)
+    # S_reshaped = reshape_data(S_deb, dims, mask_idxs)
+    # S_nib = nib.Nifti1Image(S_reshaped, None, header=data_header)
+    S_nib = new_nii_like(data_filename, S.T)
     S_output_filename = f"{output_filename}_beta.nii.gz"
     S_nib.to_filename(S_output_filename)
     update_history(S_output_filename, command_str)
 
     if n_te == 1:
-        S_fitts_reshaped = reshape_data(S_fitts, dims, mask_idxs)
-        S_fitts_nib = nib.Nifti1Image(S_fitts_reshaped, None, header=data_header)
+        # S_fitts_reshaped = reshape_data(S_fitts, dims, mask_idxs)
+        # S_fitts_nib = nib.Nifti1Image(S_fitts_reshaped, None, header=data_header)
+        S_fitts_nib = new_nii_like(data_filename, S_fitts.T)
         S_fitts_output_filename = f"{output_filename}_fitts.nii.gz"
         S_fitts_nib.to_filename(S_fitts_output_filename)
         update_history(S_fitts_output_filename, command_str)
     elif n_te > 1:
         for te_idx in range(n_te):
-            S_fitts_reshaped = reshape_data(
-                S_fitts[te_idx * nscans : (te_idx + 1) * nscans, :], dims, mask_idxs
-            )
-            S_fitts_nib = nib.Nifti1Image(S_fitts_reshaped, None, header=data_header)
+            te_data = S_fitts[te_idx * nscans : (te_idx + 1) * nscans, :]
+            # S_fitts_reshaped = reshape_data(
+            #     te_data, dims, mask_idxs
+            # )
+            # S_fitts_nib = nib.Nifti1Image(S_fitts_reshaped, None, header=data_header)
+            S_fitts_nib = new_nii_like(data_filename, te_data.T)
             S_fitts_output_filename = f"{output_filename}_fitts_E0{te_idx + 1}.nii.gz"
             S_fitts_nib.to_filename(S_fitts_output_filename)
             update_history(S_fitts_output_filename, command_str)
@@ -177,12 +183,13 @@ def low_rank_pfm(
         for i in range(eigen_vecs.shape[1]):
             eigen_vecs_output_filename = f"{output_filename}_eigenvec_{i+1}.1D"
             np.savetxt(eigen_vecs_output_filename, np.squeeze(eigen_vecs[:, i]))
-            eigen_map_reshaped = reshape_data(
-                np.expand_dims(eigen_maps[i, :], axis=0), dims, mask_idxs
-            )
-            eigen_map_nib = nib.Nifti1Image(
-                eigen_map_reshaped, None, header=data_header
-            )
+            # eigen_map_reshaped = reshape_data(
+            #     np.expand_dims(eigen_maps[i, :], axis=0), dims, mask_idxs
+            # )
+            # eigen_map_nib = nib.Nifti1Image(
+            #     eigen_map_reshaped, None, header=data_header
+            # )
+            eigen_map_nib = new_nii_like(data_filename, np.squeeze(eigen_maps[i, :]))
             eigen_map_output_filename = f"{output_filename}_eigenmap_{i+1}.nii.gz"
             eigen_map_nib.to_filename(eigen_map_output_filename)
 
