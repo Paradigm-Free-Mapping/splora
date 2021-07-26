@@ -51,6 +51,10 @@ def select_lambda(x, y, criteria="mad_update", factor=1, pcg="0.7"):
     update_lambda = False
     nt = x.shape[1]
 
+    # Use last echo to estimate noise
+    if x.shape[0] > nt:
+        y = y[-nt:, :]
+
     _, cD1 = wavedec(y, "db3", level=1, axis=0)
     noise_estimate = median_absolute_deviation(cD1) / 0.6745  # 0.8095
 
@@ -129,6 +133,9 @@ def fista(
     lambda_S, update_lambda, noise_estimate = select_lambda(
         X, y, factor=factor, criteria=lambda_crit
     )
+
+    # if n_te > 2:
+    #     lambda_S = lambda_S * n_te * 40
 
     if precision is None:
         precision = noise_estimate / 100000

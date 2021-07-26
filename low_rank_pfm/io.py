@@ -77,7 +77,7 @@ def update_history(filename, command):
         filename ([type]): [description]
         command ([type]): [description]
     """
-    # run(f"3dcopy {filename} {filename} -overwrite", shell=True)
+    run(f"3dcopy {filename} {filename} -overwrite", shell=True)
     run(f'3dNotes -h "{command}" {filename}', shell=True)
 
 
@@ -101,13 +101,13 @@ def new_nii_like(ref_img, data, affine=None, copy_header=True):
     """
 
     ref_img = check_niimg(ref_img)
-    newdata = data.reshape(ref_img.shape[:3] + data.shape[1:])
-    if ".nii" not in ref_img.valid_exts:
-        # this is rather ugly and may lose some information...
-        nii = nib.Nifti1Image(newdata, affine=ref_img.affine, header=ref_img.header)
-    else:
-        # nilearn's `new_img_like` is a very nice function
-        nii = new_img_like(ref_img, newdata, affine=affine, copy_header=copy_header)
+    # newdata = data.reshape(ref_img.shape[:3] + data.shape[1:])
+    # if ".nii" not in ref_img.valid_exts:
+    #     # this is rather ugly and may lose some information...
+    #     nii = nib.Nifti1Image(data, affine=ref_img.affine, header=ref_img.header)
+    # else:
+    # nilearn's `new_img_like` is a very nice function
+    nii = new_img_like(ref_img, data, affine=affine, copy_header=copy_header)
     nii.set_data_dtype(data.dtype)
 
     return nii
