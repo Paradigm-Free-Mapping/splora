@@ -199,7 +199,7 @@ def fista(
             lambda_S = lambda_S * noise_estimate / nv
 
     # Remove everything below tolerance
-    S[S < tol] = 0
+    # S[abs(S) < tol] = 0
 
     # Extract low-rank maps and time-series
     Ut, St, Vt = linalg.svd(

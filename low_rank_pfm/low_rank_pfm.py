@@ -106,7 +106,7 @@ def low_rank_pfm(
     if do_debias:
         if block_model:
             S_deb, A = debiasing_block(auc=S, hrf=hrf_norm, y=data_masked, is_ls=True)
-            S_fitts = np.dot(hrf_norm, S_deb)
+            S_fitts = np.dot(hrf_norm, S)
         else:
             S_deb, S_fitts = debiasing_spike(x=hrf_norm, y=data_masked, beta=S)
     else:
@@ -129,6 +129,10 @@ def low_rank_pfm(
         U_output_filename = f"{output_filename}_innovation.nii.gz"
         U_nib.to_filename(U_output_filename)
         update_history(U_output_filename, command_str)
+
+        if not do_debias:
+            S_deb = np.tril(np.ones(nscans))
+            S_fitts = np.dot(hrf_norm, S)
 
     S_reshaped = reshape_data(S_deb, dims, mask_idxs)
     S_nib = nib.Nifti1Image(S_reshaped, None, header=data_header)
