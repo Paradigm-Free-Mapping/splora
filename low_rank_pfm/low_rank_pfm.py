@@ -3,6 +3,7 @@ import sys
 
 import nibabel as nib
 import numpy as np
+from numpy.core.shape_base import block
 
 from low_rank_pfm.cli.run import _get_parser
 from low_rank_pfm.src.debiasing import debiasing_spike, debiasing_block
@@ -25,6 +26,7 @@ def low_rank_pfm(
     is_pfm=False,
     lambda_crit="mad_update",
     factor=1,
+    block_model=False,
 ):
     """Low-rank PFM main function.
 
@@ -64,6 +66,9 @@ def low_rank_pfm(
 
     n_te = len(te)
 
+    if all(i >= 1 for i in te):
+        te = [x / 1000 for x in te]
+
     print("Reading data...")
     if n_te == 1:
         data_masked, data_header, dims, mask_idxs = read_data(
@@ -85,7 +90,7 @@ def low_rank_pfm(
 
     print("Data read.")
 
-    hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, has_integrator=False)
+    hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, has_integrator=block_model)
     hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
 
     S, L, eigen_vecs, eigen_maps = fista(
@@ -99,7 +104,11 @@ def low_rank_pfm(
 
     # Debiasing
     if do_debias:
-        S_deb, S_fitts = debiasing_spike(x=hrf_norm, y=data_masked, beta=S)
+        if block_model:
+            S_deb, A = debiasing_block(auc=S, hrf=hrf_norm, y=data_masked, is_ls=True)
+            S_fitts = np.dot(hrf_norm, S_deb)
+        else:
+            S_deb, S_fitts = debiasing_spike(x=hrf_norm, y=data_masked, beta=S)
     else:
         S_deb = S
         S_fitts = np.dot(hrf_norm, S_deb)
@@ -112,6 +121,14 @@ def low_rank_pfm(
     L_output_filename = f"{output_filename}_fluc.nii.gz"
     L_nib.to_filename(L_output_filename)
     update_history(L_output_filename, command_str)
+
+    if block_model:
+        U_reshaped = reshape_data(S, dims, mask_idxs)
+        U_nib = nib.Nifti1Image(U_reshaped, None, header=data_header)
+        # S_nib = new_nii_like(data_filename, S_reshaped)
+        U_output_filename = f"{output_filename}_innovation.nii.gz"
+        U_nib.to_filename(U_output_filename)
+        update_history(U_output_filename, command_str)
 
     S_reshaped = reshape_data(S_deb, dims, mask_idxs)
     S_nib = nib.Nifti1Image(S_reshaped, None, header=data_header)

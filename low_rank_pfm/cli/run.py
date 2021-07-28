@@ -64,12 +64,20 @@ def _get_parser():
         default=[0],
     )
     optional.add_argument(
-        "-thr",
-        dest="thr",
-        type=float,
-        help="Threshold to be used on debiasing step. Default = 0.01",
-        default=1e-2,
+        "-block",
+        "--block",
+        dest="block_model",
+        action="store_true",
+        help="Estimate innovation signals. Default = False.",
+        default=False,
     )
+    # optional.add_argument(
+    #     "-thr",
+    #     dest="thr",
+    #     type=float,
+    #     help="Threshold to be used on debiasing step. Default = 0.01",
+    #     default=1e-2,
+    # )
     optional.add_argument(
         "-eigthr",
         dest="eigthr",
