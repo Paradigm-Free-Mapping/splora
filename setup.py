@@ -2,6 +2,7 @@
 import sys
 
 from setuptools import setup
+
 import versioneer
 
 SETUP_REQUIRES = ["setuptools >= 30.3.0"]

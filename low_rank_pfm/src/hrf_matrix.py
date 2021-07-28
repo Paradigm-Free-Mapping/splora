@@ -1,7 +1,8 @@
+import subprocess
+
 import numpy as np
 import scipy.io
 import scipy.stats
-import subprocess
 
 
 def hrf_linear(RT, p):

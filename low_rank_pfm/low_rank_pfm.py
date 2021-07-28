@@ -6,8 +6,8 @@ import numpy as np
 from numpy.core.shape_base import block
 
 from low_rank_pfm.cli.run import _get_parser
-from low_rank_pfm.src.debiasing import debiasing_spike, debiasing_block
 from low_rank_pfm.io import read_data, reshape_data, update_history
+from low_rank_pfm.src.debiasing import debiasing_block, debiasing_spike
 from low_rank_pfm.src.fista import fista
 from low_rank_pfm.src.hrf_matrix import HRFMatrix
 
@@ -105,8 +105,10 @@ def low_rank_pfm(
     # Debiasing
     if do_debias:
         if block_model:
-            S_deb, A = debiasing_block(auc=S, hrf=hrf_norm, y=data_masked, is_ls=True)
-            S_fitts = np.dot(hrf_norm, S)
+            hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, has_integrator=False)
+            hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
+            S_deb = debiasing_block(auc=S, hrf=hrf_norm, y=data_masked)
+            S_fitts = np.dot(hrf_norm, S_deb)
         else:
             S_deb, S_fitts = debiasing_spike(x=hrf_norm, y=data_masked, beta=S)
     else:
@@ -131,8 +133,10 @@ def low_rank_pfm(
         update_history(U_output_filename, command_str)
 
         if not do_debias:
-            S_deb = np.tril(np.ones(nscans))
-            S_fitts = np.dot(hrf_norm, S)
+            hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, has_integrator=False)
+            hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
+            S_deb = np.dot(np.tril(np.ones(nscans)), S_deb)
+            S_fitts = np.dot(hrf_norm, S_deb)
 
     S_reshaped = reshape_data(S_deb, dims, mask_idxs)
     S_nib = nib.Nifti1Image(S_reshaped, None, header=data_header)
@@ -151,9 +155,7 @@ def low_rank_pfm(
     elif n_te > 1:
         for te_idx in range(n_te):
             te_data = S_fitts[te_idx * nscans : (te_idx + 1) * nscans, :]
-            S_fitts_reshaped = reshape_data(
-                te_data, dims, mask_idxs
-            )
+            S_fitts_reshaped = reshape_data(te_data, dims, mask_idxs)
             S_fitts_nib = nib.Nifti1Image(S_fitts_reshaped, None, header=data_header)
             # S_fitts_nib = new_nii_like(data_filename, S_fitts_reshaped)
             S_fitts_output_filename = f"{output_filename}_fitts_E0{te_idx + 1}.nii.gz"
