@@ -127,6 +127,24 @@ def _get_parser():
         help="Factor to multiply noise estimate for lambda selection.",
         default=1,
     )
+    optional.add_argument(
+        "-debug",
+        "--debug",
+        dest="debug",
+        action="store_true",
+        help="Logs in the terminal will have increased "
+        "verbosity, and will also be written into "
+        "a .tsv file in the output directory.",
+        default=False,
+    )
+    optional.add_argument(
+        "-quiet",
+        "--quiet",
+        dest="quiet",
+        help=argparse.SUPPRESS,
+        action="store_true",
+        default=False,
+    )
     optional.add_argument("-v", "--version", action="version", version=("%(prog)s " + __version__))
 
     parser._action_groups.append(optional)

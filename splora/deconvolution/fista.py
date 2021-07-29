@@ -1,8 +1,13 @@
 """FISTA solver for PFM."""
+import logging
+
 import numpy as np
 from pywt import wavedec
 from scipy import linalg
 from scipy.stats import median_absolute_deviation
+
+LGR = logging.getLogger("GENERAL")
+RefLGR = logging.getLogger("REFERENCES")
 
 
 def proximal_operator_lasso(y, thr):
@@ -213,7 +218,7 @@ def fista(
             break
         diff_old = keep_diff[i]
 
-    print(f"{keep_idx} low-rank components found.")
+    LGR(f"{keep_idx} low-rank components found.")
 
     # Select lambda for each voxel based on criteria
     lambda_S, update_lambda, noise_estimate = select_lambda(
@@ -226,7 +231,7 @@ def fista(
     # Perform FISTA
     for num_iter in range(max_iter):
 
-        print(f"Iteration {num_iter + 1}/{max_iter}")
+        LGR(f"Iteration {num_iter + 1}/{max_iter}")
 
         # Save results from previous iteration
         S_old = S.copy()

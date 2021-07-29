@@ -1,15 +1,21 @@
 """Main."""
-from os import write
+import datetime
+import logging
 import sys
+from os import path as op
 
 import numpy as np
 from numpy.core.shape_base import block
 
+from splora import utils
 from splora.cli.run import _get_parser
+from splora.deconvolution.debiasing import debiasing_block, debiasing_spike
+from splora.deconvolution.fista import fista
+from splora.deconvolution.hrf_matrix import HRFMatrix
 from splora.io import read_data, write_data
-from splora.utils.debiasing import debiasing_block, debiasing_spike
-from splora.utils.fista import fista
-from splora.utils.hrf_matrix import HRFMatrix
+
+LGR = logging.getLogger("GENERAL")
+RefLGR = logging.getLogger("REFERENCES")
 
 
 def splora(
@@ -26,6 +32,8 @@ def splora(
     lambda_crit="mad_update",
     factor=1,
     block_model=False,
+    debug=False,
+    quiet=False,
 ):
     """Main function of splora.
 
@@ -58,6 +66,10 @@ def splora(
         Only used when "factor" criteria is selected.
     block_model : bool, optional
         Whether to use the block model in favor of the spike model, by default False
+    debug : :obj:`bool`, optional
+        Whether to run in debugging mode or not. Default is False.
+    quiet : :obj:`bool`, optional
+        If True, suppresses logging/LGRing of messages. Default is False.
     """
     te_str = str(te).strip("[]")
     arguments = f"-i {data_filename} -m {mask_filename} -o {output_filename} -tr {tr} "
@@ -69,14 +81,30 @@ def splora(
         arguments += "-pfm "
     if block_model:
         arguments += "-block "
+    if debug:
+        arguments += "-debug "
+    if quiet:
+        arguments += "-quiet"
     command_str = f"splora {arguments}"
+
+    LGR = logging.getLogger("GENERAL")
+    RefLGR = logging.getLogger("REFERENCES")
+    # create logfile name
+    basename = "splora_"
+    extension = "tsv"
+    start_time = datetime.datetime.now().strftime("%Y-%m-%dT%H%M%S")
+    logname = op.join(out_dir, (basename + start_time + "." + extension))
+    refname = op.join(out_dir, "_references.txt")
+    utils.setup_loggers(logname, refname, quiet=quiet, debug=debug)
+
+    LGR.info("Using output directory: {}".format(out_dir))
 
     n_te = len(te)
 
     if all(i >= 1 for i in te):
         te = [x / 1000 for x in te]
 
-    print("Reading data...")
+    LGR("Reading data...")
     if n_te == 1:
         data_masked, data_header, dims, mask_idxs = read_data(data_filename[0], mask_filename)
         nscans = data_masked.shape[0]
@@ -91,9 +119,9 @@ def splora(
             else:
                 data_masked = np.concatenate((data_masked, data_temp), axis=0)
 
-            print(f"{te_idx + 1}/{n_te} echoes...")
+            LGR(f"{te_idx + 1}/{n_te} echoes...")
 
-    print("Data read.")
+    LGR("Data read.")
 
     hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=block_model)
     hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
@@ -120,7 +148,7 @@ def splora(
         S_deb = S
         S_fitts = np.dot(hrf_norm, S_deb)
 
-    print("Saving results...")
+    LGR("Saving results...")
     # Save innovation signal
     if block_model:
         output_name = f"{output_filename}_innovation.nii.gz"
@@ -156,8 +184,9 @@ def splora(
             output_name = f"{output_filename}_eigenmap_{i+1}.nii.gz"
             write_data(low_rank_map, output_name, dims, mask_idxs, data_header, command_str)
 
-    print("Results saved.")
-    print("Low-Rank and Sparse PFM finished.")
+    LGR("Results saved.")
+    LGR("Low-Rank and Sparse PFM finished.")
+    utils.teardown_loggers()
 
 
 def _main(argv=None):
