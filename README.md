@@ -1,6 +1,6 @@
-# Low Rank and Sparse Paradigm Free Mapping
+# SParse and LOw-RAnk Paradigm Free Mapping
 
-Repo for the Low Rank and Sparse PFM algorithm.
+Repository for SPLORA PFM.
 
 How to install:
 
@@ -8,7 +8,7 @@ How to install:
 
 How to use:
 
-`low_rank_pfm -i data.nii.gz -m mask.nii.gz -tr 2`
+`splora -i data.nii.gz -m mask.nii.gz -tr 2`
 
 To see all options available, type: `low_rank_pfm -h`
 
