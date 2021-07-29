@@ -8,15 +8,25 @@ from nilearn.image import new_img_like
 
 
 def read_data(data_filename, mask_filename):
-    """
-    Read files.
+    """Read data from filename and apply mask.
 
-    Args:
-        data_filename ([type]): [description]
-        mask_filename ([type]): [description]
+    Parameters
+    ----------
+    data_filename : str or path
+        Path to data to be read.
+    mask_filename : str or path
+        Path to mask to be applied.
 
-    Returns:
-        [type]: [description]
+    Returns
+    -------
+    data_restruct : (T x S) array_like
+        [description]
+    data_header : nib.header
+        Header of the input data.
+    dims : list
+        List with dimensions of data.
+    mask_idxs : (S x) array_like
+        Indexes to transform data back to 4D.
     """
     data_img = nib.load(data_filename)
     data_header = data_img.header
@@ -44,13 +54,21 @@ def read_data(data_filename, mask_filename):
 
 
 def reshape_data(signal2d, dims, mask_idxs):
-    """
-    Reshape data from 2D to 4D.
+    """Reshape data from 2D back to 4D.
 
-    Args:
-        signal2d ([type]): [description]
-        dims ([type]): [description]
-        mask_idxs ([type]): [description]
+    Parameters
+    ----------
+    signal2d : (T x S) array_like
+        Data in 2D.
+    dims : list
+        List with dimensions of data.
+    mask_idxs : (S x) array_like
+        Indexes to transform data back to 4D.
+
+    Returns
+    -------
+    signal4d : (S x S x S x T) array_like
+        Data in 4D.
     """
     signal4d = np.zeros((dims[0] * dims[1] * dims[2], signal2d.shape[0]))
     idxs = 0
@@ -70,45 +88,39 @@ def reshape_data(signal2d, dims, mask_idxs):
     return signal4d
 
 
-def update_history(filename, command):
-    """
-    Update file history for 3dinfo.
+def update_header(filename, command):
+    """Update history of data to be read with 3dInfo.
 
-    Args:
-        filename ([type]): [description]
-        command ([type]): [description]
+    Parameters
+    ----------
+    filename : str or path
+        Path to the file that is getting the header updated.
+    command : str
+        splora command to add to the header.
     """
     run(f"3dcopy {filename} {filename} -overwrite", shell=True)
     run(f'3dNotes -h "{command}" {filename}', shell=True)
 
 
-def new_nii_like(ref_img, data, affine=None, copy_header=True):
-    """
-    Coerces `data` into NiftiImage format like `ref_img`
+def write_data(data, filename, dims, idxs, header, command_str):
+    """Write data into NIFTI file.
+
     Parameters
     ----------
-    ref_img : :obj:`str` or img_like
-        Reference image
-    data : (S [x T]) array_like
-        Data to be saved
-    affine : (4 x 4) array_like, optional
-        Transformation matrix to be used. Default: `ref_img.affine`
-    copy_header : :obj:`bool`, optional
-        Whether to copy header from `ref_img` to new image. Default: True
-    Returns
-    -------
-    nii : :obj:`nibabel.nifti1.Nifti1Image`
-        NiftiImage
+    data : [type]
+        [description]
+    filename : [type]
+        [description]
+    dims : [type]
+        [description]
+    idxs : [type]
+        [description]
+    header : [type]
+        [description]
+    command_str : [type]
+        [description]
     """
-
-    ref_img = check_niimg(ref_img)
-    # newdata = data.reshape(ref_img.shape[:3] + data.shape[1:])
-    # if ".nii" not in ref_img.valid_exts:
-    #     # this is rather ugly and may lose some information...
-    #     nii = nib.Nifti1Image(data, affine=ref_img.affine, header=ref_img.header)
-    # else:
-    # nilearn's `new_img_like` is a very nice function
-    nii = new_img_like(ref_img, data, affine=affine, copy_header=copy_header)
-    nii.set_data_dtype(data.dtype)
-
-    return nii
+    reshaped = reshape_data(data, dims, idxs)
+    U_nib = nib.Nifti1Image(reshaped, None, header=header)
+    U_nib.to_filename(filename)
+    update_header(filename, command_str)
