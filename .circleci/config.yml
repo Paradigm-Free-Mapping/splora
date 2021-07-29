@@ -6,7 +6,6 @@ version: 2.1
 orbs:
   codecov: codecov/codecov@1.0.5
 jobs:
-
   makeenv_37:
     docker:
       - image: nipype/nipype
@@ -16,7 +15,7 @@ jobs:
       - persist_to_workspace:
           root: /tmp
           paths:
-              - src/splora
+            - src/splora
       - restore_cache:
           key: conda-py37-v1-{{ checksum "setup.cfg" }}
       - run:
@@ -35,7 +34,29 @@ jobs:
       - save_cache:
           key: conda-py37-v1-{{ checksum "setup.cfg" }}
           paths:
-              - /opt/miniconda-latest/envs/splora_py37
+            - /opt/miniconda-latest/envs/splora_py37
+
+  unittest_37:
+    docker:
+      - image: continuumio/miniconda3
+    working_directory: /tmp/src/splora
+    steps:
+      - checkout
+      - restore_cache:
+          key: conda-py37-v1-{{ checksum "splora/info.py" }}
+      - run:
+          name: Running unit tests
+          command: |
+            apt-get update
+            apt-get install -y make
+            source activate splora_py37  # depends on makeenv_37
+            make unittest
+            mkdir /tmp/src/coverage
+            mv /tmp/src/splora/.coverage /tmp/src/coverage/.coverage.py37
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - src/coverage/.coverage.py37
 
   style_check:
     docker:
