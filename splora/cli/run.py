@@ -37,7 +37,7 @@ def _get_parser():
         "--mask",
         dest="mask_filename",
         type=str,
-        help="The name of the file containing the mask for " "the fMRI data. ",
+        help="The name of the file containing the mask for the fMRI data. ",
         required=True,
     )
     required.add_argument(
@@ -54,6 +54,14 @@ def _get_parser():
         type=float,
         help="TR of the fMRI data acquisition.",
         required=True,
+    )
+    optional.add_argument(
+        "-d",
+        "--dir",
+        dest="out_dir",
+        type=str,
+        help="Output directory. Default is current.",
+        default=".",
     )
     optional.add_argument(
         "-te",
@@ -88,7 +96,6 @@ def _get_parser():
         default=0,
     )
     optional.add_argument(
-        "-d",
         "--debias",
         dest="do_debias",
         action="store_true",
