@@ -1,10 +1,24 @@
+"""Utils of splora."""
 import logging
 
 LGR = logging.getLogger("GENERAL")
 RefLGR = logging.getLogger("REFERENCES")
 
 
-def setup_loggers(logname=None, repname=None, refname=None, quiet=False, debug=False):
+def setup_loggers(logname=None, refname=None, quiet=False, debug=False):
+    """Set up loggers.
+
+    Parameters
+    ----------
+    logname : str, optional
+        Name of the log file, by default None
+    refname : str, optional
+        Name of the reference file, by default None
+    quiet : bool, optional
+        Whether the logger should run in quiet mode, by default False
+    debug : bool, optional
+        Whether the logger should run in debug mode, by default False
+    """
     # Set up the general logger
     log_formatter = logging.Formatter(
         "%(asctime)s\t%(module)s.%(funcName)-12s\t%(levelname)-8s\t%(message)s",
@@ -42,6 +56,7 @@ def setup_loggers(logname=None, repname=None, refname=None, quiet=False, debug=F
 
 
 def teardown_loggers():
+    """Remove logger handler."""
     for local_logger in (RefLGR, LGR):
         for handler in local_logger.handlers[:]:
             handler.close()

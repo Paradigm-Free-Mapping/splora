@@ -1,3 +1,4 @@
+"""HRF Matrix file."""
 import logging
 import subprocess
 
@@ -10,7 +11,7 @@ RefLGR = logging.getLogger("REFERENCES")
 
 
 def hrf_linear(TR, p):
-    """Generate HRF
+    """Generate HRF.
 
     Parameters
     ----------

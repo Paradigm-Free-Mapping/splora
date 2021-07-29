@@ -5,7 +5,6 @@ import sys
 from os import path as op
 
 import numpy as np
-from numpy.core.shape_base import block
 
 from splora import utils
 from splora.cli.run import _get_parser
@@ -15,7 +14,7 @@ from splora.deconvolution.hrf_matrix import HRFMatrix
 from splora.io import read_data, write_data
 
 LGR = logging.getLogger("GENERAL")
-RefLGR = logging.getLogger("REFERENCES")
+# RefLGR = logging.getLogger("REFERENCES")
 
 
 def splora(
@@ -35,7 +34,7 @@ def splora(
     debug=False,
     quiet=False,
 ):
-    """Main function of splora.
+    """Run main workflow of splora.
 
     Parameters
     ----------
