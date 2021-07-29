@@ -10,7 +10,7 @@ SETUP_REQUIRES += ["wheel"] if "bdist_wheel" in sys.argv else []
 
 if __name__ == "__main__":
     setup(
-        name="low_rank_pfm",
+        name="splora",
         setup_requires=SETUP_REQUIRES,
         version=versioneer.get_version(),
         cmdclass=versioneer.get_cmdclass(),

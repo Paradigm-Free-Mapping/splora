@@ -5,14 +5,14 @@ import nibabel as nib
 import numpy as np
 from numpy.core.shape_base import block
 
-from low_rank_pfm.cli.run import _get_parser
-from low_rank_pfm.io import read_data, reshape_data, update_history
-from low_rank_pfm.src.debiasing import debiasing_block, debiasing_spike
-from low_rank_pfm.src.fista import fista
-from low_rank_pfm.src.hrf_matrix import HRFMatrix
+from splora.cli.run import _get_parser
+from splora.io import read_data, reshape_data, update_history
+from splora.utils.debiasing import debiasing_block, debiasing_spike
+from splora.utils.fista import fista
+from splora.utils.hrf_matrix import HRFMatrix
 
 
-def low_rank_pfm(
+def splora(
     data_filename,
     mask_filename,
     output_filename,
@@ -28,7 +28,7 @@ def low_rank_pfm(
     factor=1,
     block_model=False,
 ):
-    """Low-rank PFM main function.
+    """Splora main function.
 
     Parameters
     ----------
@@ -183,7 +183,7 @@ def low_rank_pfm(
 
 def _main(argv=None):
     options = _get_parser().parse_args(argv)
-    low_rank_pfm(**vars(options))
+    splora(**vars(options))
 
 
 if __name__ == "__main__":

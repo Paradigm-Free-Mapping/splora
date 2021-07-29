@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Parser for phys2bids."""
+"""Parser for splora."""
 
 
 import argparse
 
-from low_rank_pfm import __version__
+from splora import __version__
 
 
 def _get_parser():
@@ -146,7 +146,7 @@ def _get_parser():
 
 if __name__ == "__main__":
     raise RuntimeError(
-        "low_rank_pfm/cli/run.py should not be run directly;\n"
-        "Please `pip install` low_rank_pfm and use the "
-        "`low_rank_pfm` command"
+        "splora/cli/run.py should not be run directly;\n"
+        "Please `pip install` splora and use the "
+        "`splora` command"
     )
