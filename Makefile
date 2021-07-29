@@ -5,7 +5,7 @@ all_tests: lint unittest
 help:
 	@echo "Please use 'make <target>' where <target> is one of:"
 	@echo "  lint			to run flake8 on all Python files"
-	@echo "  unittest		to run unit tests on tedana"
+	@echo "  unittest		to run unit tests on splora"
 	@echo "  all_tests		to run all tests"
 
 lint:
