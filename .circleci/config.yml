@@ -123,9 +123,9 @@ workflows:
     jobs:
       - makeenv_37
       # - unittest_36
-      # - unittest_37:
-      #     requires:
-      #       - makeenv_37
+      - unittest_37:
+          requires:
+            - makeenv_37
       # - integrationtest_36
       # - integrationtest_37:
       #     requires:
@@ -139,7 +139,7 @@ workflows:
       - merge_coverage:
           requires:
             # - unittest_36
-            # - unittest_37
+            - unittest_37
             # - integrationtest_36
             # - integrationtest_37
             - style_check
