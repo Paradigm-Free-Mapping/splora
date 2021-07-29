@@ -51,7 +51,8 @@ def splora(
     te : list, optional
         TE of the acquisition in ms, by default [0]
     eigthr : float, optional
-        Minimum percentage gap between the eigen values of selected low-rank components, by default 0.1
+        Minimum percentage gap between the eigen values of selected low-rank components,
+        by default 0.1
     group : float, optional
         Weight for grouping effect over sparsity, by default 0
     do_debias : bool, optional
@@ -87,7 +88,7 @@ def splora(
     command_str = f"splora {arguments}"
 
     LGR = logging.getLogger("GENERAL")
-    RefLGR = logging.getLogger("REFERENCES")
+    # RefLGR = logging.getLogger("REFERENCES")
     # create logfile name
     basename = "splora_"
     extension = "tsv"
