@@ -1,8 +1,13 @@
 """FISTA solver for PFM."""
+import logging
+
 import numpy as np
 from pywt import wavedec
 from scipy import linalg
 from scipy.stats import median_absolute_deviation
+
+LGR = logging.getLogger("GENERAL")
+RefLGR = logging.getLogger("REFERENCES")
 
 
 def proximal_operator_lasso(y, thr):
@@ -95,7 +100,8 @@ def select_lambda(hrf, y, criteria="mad_update", factor=1, pcg="0.7"):
     lambda_selection : array_like
         Value of the regularization parameter lambda for each voxel.
     update_lambda : bool
-        Whether to update lambda after each iteration until it converges to the MAD estimate of the noise.
+        Whether to update lambda after each iteration until it converges to the MAD estimate
+        of the noise.
     noise_estimate : array_like
         MAD estimate of the noise.
     """
@@ -162,7 +168,8 @@ def fista(
         Minimum value with which lambda is considered to have converged to the MAD estimate
         of the noise, by default None
     eigen_thr : float, optional
-        Minimum percentage gap between the eigen values of selected low-rank components, by default 0.1
+        Minimum percentage gap between the eigen values of selected low-rank components,
+        by default 0.1
     tol : [type], optional
         Value to which FISTA is considered to have converged, by default 1e-6
     factor : int, optional
@@ -171,7 +178,8 @@ def fista(
     Returns
     -------
     S : (T x S) aray_like
-        Estimated activity-inducing signal (for spike model) or innovation signal (for block model).
+        Estimated activity-inducing signal (for spike model) or innovation signal
+        (for block model).
     eig_vecs : (T x ) aray_like
         Time-series of the estimated low-rank components.
     eig_maps : (S x ) aray_like
@@ -213,7 +221,7 @@ def fista(
             break
         diff_old = keep_diff[i]
 
-    print(f"{keep_idx} low-rank components found.")
+    LGR(f"{keep_idx} low-rank components found.")
 
     # Select lambda for each voxel based on criteria
     lambda_S, update_lambda, noise_estimate = select_lambda(
@@ -226,7 +234,7 @@ def fista(
     # Perform FISTA
     for num_iter in range(max_iter):
 
-        print(f"Iteration {num_iter + 1}/{max_iter}")
+        LGR(f"Iteration {num_iter + 1}/{max_iter}")
 
         # Save results from previous iteration
         S_old = S.copy()

@@ -3,8 +3,6 @@ from subprocess import run
 
 import nibabel as nib
 import numpy as np
-from nilearn._utils import check_niimg
-from nilearn.image import new_img_like
 
 
 def read_data(data_filename, mask_filename):

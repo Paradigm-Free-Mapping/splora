@@ -1,12 +1,17 @@
+"""HRF Matrix file."""
+import logging
 import subprocess
 
 import numpy as np
 import scipy.io
 import scipy.stats
 
+LGR = logging.getLogger("GENERAL")
+RefLGR = logging.getLogger("REFERENCES")
+
 
 def hrf_linear(TR, p):
-    """Generate HRF
+    """Generate HRF.
 
     Parameters
     ----------
@@ -98,7 +103,7 @@ def hrf_afni(TR, lop_hrf="SPMG1"):
         hrf = np.array([float(i) for i in hrf_tr_str])
         last_hrf_sample = hrf[len(hrf) - 1]
         if last_hrf_sample != 0:
-            print(
+            LGR(
                 "Duration of HRF was not sufficient for specified model. Doubling duration "
                 "and computing again."
             )

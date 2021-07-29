@@ -1,8 +1,14 @@
 """Debiasing functions for PFM."""
+import logging
+
 import numpy as np
 import scipy as sci
 from scipy.signal import find_peaks
 from sklearn.linear_model import RidgeCV
+
+LGR = logging.getLogger("GENERAL")
+RefLGR = logging.getLogger("REFERENCES")
+
 
 # Performs the debiasing step on an AUC timeseries obtained considering the integrator model
 def debias_block(auc, hrf, y, is_ls):
@@ -97,8 +103,8 @@ def debiasing_block(auc, hrf, y, dist=2):
     # Initiates beta matrix
     beta_out = np.zeros((nscans, nvoxels))
 
-    print("Starting debiasing step...")
-    # print('0% debiased...')
+    LGR("Starting debiasing step...")
+    # LGR('0% debiased...')
     # Performs debiasing
     for vox_idx in range(nvoxels):
         # Keep only maximum values in AUC peaks
@@ -110,7 +116,7 @@ def debiasing_block(auc, hrf, y, dist=2):
 
         beta_out[:, vox_idx], _ = debias_block(auc[:, vox_idx], hrf, y[:, vox_idx], is_ls=True)
 
-    print("Debiasing step finished")
+    LGR("Debiasing step finished")
     return beta_out
 
 
@@ -139,7 +145,7 @@ def debiasing_spike(hrf, y, auc):
 
     index_voxels = np.unique(np.where(abs(auc) > 10 * np.finfo(float).eps)[1])
 
-    print("Performing debiasing step...")
+    LGR("Performing debiasing step...")
 
     for voxidx in range(len(index_voxels)):
         index_events_opt = np.where(abs(auc[:, index_voxels[voxidx]]) > 10 * np.finfo(float).eps)[
@@ -156,5 +162,5 @@ def debiasing_spike(hrf, y, auc):
         fitts_out[:, index_voxels[voxidx]] = np.squeeze(np.dot(hrf, beta2save))
         beta_out[:, index_voxels[voxidx]] = beta2save.reshape(len(beta2save))
 
-    print("Debiasing step finished")
+    LGR("Debiasing step finished")
     return beta_out, fitts_out
