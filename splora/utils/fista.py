@@ -1,41 +1,68 @@
+"""FISTA solver for PFM."""
 import numpy as np
 from pywt import wavedec
 from scipy import linalg
 from scipy.stats import median_absolute_deviation
 
 
-def proximal_operator_lasso(y, lambda_val, weights=0):
-    x = y * np.maximum(np.zeros(y.shape), 1 - (lambda_val / abs(y)))
+def proximal_operator_lasso(y, thr):
+    """Perform soft-thresholding.
+
+    Parameters
+    ----------
+    y : array_like
+        Input data to be soft-thresholded.
+    thr : float
+        Thresholding value.
+
+    Returns
+    -------
+    x : array_like
+        Soft-thresholded data.
+    """
+    x = y * np.maximum(np.zeros(y.shape), 1 - (thr / abs(y)))
     x[np.abs(x) < np.finfo(float).eps] = 0
 
     return x
 
 
-def proximal_operator_mixed_norm(y, lambda_val, rho_val=0.8, groups="space"):
+def proximal_operator_mixed_norm(y, thr, rho_val=0.8, groups="space"):
+    """Apply proximal operator for L2,1 + L1 mixed-norm.
+
+    Parameters
+    ----------
+    y : array_like
+        Input data to be soft-thresholded.
+    thr : float
+        Thresholding value.
+    rho_val : float, optional
+        Weight for sparsity over grouping effect, by default 0.8
+    groups : str, optional
+        Dimension to apply grouping on, by default "space"
+
+    Returns
+    -------
+    x : array_like
+        Data thresholded with L2,1 + L1 mixed-norm proximal operator.
+    """
     # Division parameter of proximal operator
     div = y / np.abs(y)
     div[np.isnan(div)] = 0
 
     # First parameter of proximal operator
-    p_one = np.maximum(np.zeros(y.shape), (np.abs(y) - lambda_val * rho_val))
+    p_one = np.maximum(np.zeros(y.shape), (np.abs(y) - thr * rho_val))
 
     # Second parameter of proximal operator
     if groups == "space":
-        foo = np.sum(
-            np.maximum(np.zeros(y.shape), np.abs(y) - lambda_val * rho_val) ** 2, axis=1
-        )
+        foo = np.sum(np.maximum(np.zeros(y.shape), np.abs(y) - thr * rho_val) ** 2, axis=1)
         foo = foo.reshape(len(foo), 1)
         foo = np.dot(foo, np.ones((1, y.shape[1])))
     else:
-        foo = np.sum(
-            np.maximum(np.zeros(y.shape), np.abs(y) - lambda_val * rho_val) ** 2, axis=0
-        )
+        foo = np.sum(np.maximum(np.zeros(y.shape), np.abs(y) - thr * rho_val) ** 2, axis=0)
         foo = foo.reshape(1, len(foo))
         foo = np.dot(np.ones((y.shape[0], 1), foo))
 
-    p_two = np.maximum(
-        np.zeros(y.shape), np.ones(y.shape) - lambda_val * (1 - rho_val) / np.sqrt(foo)
-    )
+    p_two = np.maximum(np.zeros(y.shape), np.ones(y.shape) - thr * (1 - rho_val) / np.sqrt(foo))
 
     # Proximal operation
     x = div * p_one * p_two
@@ -44,44 +71,67 @@ def proximal_operator_mixed_norm(y, lambda_val, rho_val=0.8, groups="space"):
     return x
 
 
-def select_lambda(x, y, criteria="mad_update", factor=1, pcg="0.7"):
-    """
-    Select lambda.
+def select_lambda(hrf, y, criteria="mad_update", factor=1, pcg="0.7"):
+    """Criteria to select regularization parameter lambda.
+
+    Parameters
+    ----------
+    hrf : (E x T) array_like
+        Matrix containing shifted HRFs in its columns. E stands for the number of volumes times
+        the number of echo-times.
+    y : (T x S) array_like
+        Matrix with fMRI data provided to splora.
+    criteria : str, optional
+        Criteria to select regularization parameter lambda, by default "mad_update"
+    factor : int, optional
+        Factor by which to multiply the value of lambda, by default 1
+        Only used when "factor" criteria is selected.
+    pcg : str, optional
+        Percentage of maximum lambda possible to use, by default "0.7"
+        Only used when "pcg" criteria is selected.
+
+    Returns
+    -------
+    lambda_selection : array_like
+        Value of the regularization parameter lambda for each voxel.
+    update_lambda : bool
+        Whether to update lambda after each iteration until it converges to the MAD estimate of the noise.
+    noise_estimate : array_like
+        MAD estimate of the noise.
     """
     update_lambda = False
-    nt = x.shape[1]
+    nt = hrf.shape[1]
 
     # Use last echo to estimate noise
-    if x.shape[0] > nt:
+    if hrf.shape[0] > nt:
         y = y[-nt:, :]
 
     _, cD1 = wavedec(y, "db3", level=1, axis=0)
     noise_estimate = median_absolute_deviation(cD1) / 0.6745  # 0.8095
 
     if criteria == "mad":
-        lambda_selec = noise_estimate
+        lambda_selection = noise_estimate
     elif criteria == "mad_update":
-        lambda_selec = noise_estimate
+        lambda_selection = noise_estimate
         update_lambda = True
     elif criteria == "ut":
-        lambda_selec = noise_estimate * np.sqrt(2 * np.log10(nt))
+        lambda_selection = noise_estimate * np.sqrt(2 * np.log10(nt))
     elif criteria == "lut":
-        lambda_selec = noise_estimate * np.sqrt(
+        lambda_selection = noise_estimate * np.sqrt(
             2 * np.log10(nt) - np.log10(1 + 4 * np.log10(nt))
         )
     elif criteria == "factor":
-        lambda_selec = noise_estimate * factor
+        lambda_selection = noise_estimate * factor
     elif criteria == "pcg":
-        max_lambda = np.mean(abs(np.dot(x.T, y)), axis=0)
-        lambda_selec = max_lambda * pcg
+        max_lambda = np.mean(abs(np.dot(hrf.T, y)), axis=0)
+        lambda_selection = max_lambda * pcg
 
-    return lambda_selec, update_lambda, noise_estimate
+    return lambda_selection, update_lambda, noise_estimate
 
 
 def fista(
-    X,
+    hrf,
     y,
-    nscans,
     n_te,
     max_iter=100,
     min_iter=10,
@@ -91,13 +141,49 @@ def fista(
     tol=1e-6,
     factor=1,
 ):
+    """Solve inverse problem with FISTA.
 
+    Parameters
+    ----------
+    hrf : (E x T) array_like
+        Matrix containing shifted HRFs in its columns. E stands for the number of volumes times
+        the number of echo-times.
+    y : (T x S) array_like
+        Matrix with fMRI data provided to splora.
+    n_te : int
+        Number of echo-times provided.
+    max_iter : int, optional
+        Maximum number of iterations for FISTA, by default 100
+    min_iter : int, optional
+        Minimum number of iterations for FISTA, by default 10
+    lambda_crit : str, optional
+        Criteria to select the regularization parameter lambda, by default "mad_update"
+    precision : float, optional
+        Minimum value with which lambda is considered to have converged to the MAD estimate
+        of the noise, by default None
+    eigen_thr : float, optional
+        Minimum percentage gap between the eigen values of selected low-rank components, by default 0.1
+    tol : [type], optional
+        Value to which FISTA is considered to have converged, by default 1e-6
+    factor : int, optional
+        Factor by which the regularization parameter lambda is multiplied, by default 1
+
+    Returns
+    -------
+    S : (T x S) aray_like
+        Estimated activity-inducing signal (for spike model) or innovation signal (for block model).
+    eig_vecs : (T x ) aray_like
+        Time-series of the estimated low-rank components.
+    eig_maps : (S x ) aray_like
+        Spatial maps of the estimated low-rank components.
+    """
     nvoxels = y.shape[1]
+    nscans = hrf.shape[1]
 
-    c_ist = 1 / (linalg.norm(X) ** 2)
-    X_trans = X.T
-    X_cov = np.dot(X_trans, X)
-    v = np.dot(X_trans, y)
+    c_ist = 1 / (linalg.norm(hrf) ** 2)
+    hrf_trans = hrf.T
+    hrf_cov = np.dot(hrf_trans, hrf)
+    v = np.dot(hrf_trans, y)
 
     y_fista_S = np.zeros((nscans, nvoxels), dtype=np.float32)
     y_fista_L = np.zeros(y.shape)
@@ -108,7 +194,7 @@ def fista(
     else:
         L = np.zeros((n_te * nscans, nvoxels))
     A = L.copy()
-    data_fidelity = L.copy()
+    data_fidelity = y - y_fista_L
 
     keep_idx = 1
     t_fista = 1
@@ -131,11 +217,8 @@ def fista(
 
     # Select lambda for each voxel based on criteria
     lambda_S, update_lambda, noise_estimate = select_lambda(
-        X, y, factor=factor, criteria=lambda_crit
+        hrf, y, factor=factor, criteria=lambda_crit
     )
-
-    # if n_te > 2:
-    #     lambda_S = lambda_S * n_te * 40
 
     if precision is None:
         precision = noise_estimate / 100000
@@ -154,7 +237,7 @@ def fista(
         y_ista_A = y_fista_A.copy()
 
         # Forward-Backward step
-        S_residuals = v - np.dot(X_cov, y_ista_S)
+        S_residuals = v - np.dot(hrf_cov, y_ista_S)
         z_ista_S = y_ista_S + c_ist * S_residuals
         z_ista_L = y_ista_L + c_ist * data_fidelity
 
@@ -162,13 +245,11 @@ def fista(
         S = proximal_operator_lasso(z_ista_S, c_ist * lambda_S)
 
         # Estimate L
-        Ut, St, Vt = linalg.svd(
-            z_ista_L, full_matrices=False, compute_uv=True, check_finite=True
-        )
+        Ut, St, Vt = linalg.svd(z_ista_L, full_matrices=False, compute_uv=True, check_finite=True)
         St[keep_idx + 1 :] = 0
         L = np.dot(np.dot(Ut, np.diag(St)), Vt)
 
-        A = y_ista_A + np.dot(X, S - y_ista_S) + (L - y_ista_L)
+        A = y_ista_A + np.dot(hrf, S - y_ista_S) + (L - y_ista_L)
 
         t_fista_old = t_fista
         t_fista = 0.5 * (1 + np.sqrt(1 + 4 * (t_fista_old ** 2)))
@@ -180,14 +261,11 @@ def fista(
         data_fidelity = y - y_fista_A
 
         # Residuals
-        nv = np.sqrt(np.sum((np.dot(X, S) + L - y) ** 2, axis=0) / nscans)
+        nv = np.sqrt(np.sum((np.dot(hrf, S) + L - y) ** 2, axis=0) / nscans)
 
         # Convergence
         if num_iter >= min_iter:
-            if (
-                any(abs(nv - noise_estimate) < precision)
-                and lambda_crit == "mad_update"
-            ):
+            if any(abs(nv - noise_estimate) < precision) and lambda_crit == "mad_update":
                 break
             else:
                 diff = (abs(S_old - S) < tol).flatten()
@@ -197,9 +275,6 @@ def fista(
         # Update lambda
         if update_lambda:
             lambda_S = lambda_S * noise_estimate / nv
-
-    # Remove everything below tolerance
-    # S[abs(S) < tol] = 0
 
     # Extract low-rank maps and time-series
     Ut, St, Vt = linalg.svd(
@@ -216,4 +291,4 @@ def fista(
     std_eig_maps = np.expand_dims(np.std(eig_maps, axis=1), axis=1)
     eig_maps = (eig_maps - mean_eig_maps) / std_eig_maps
 
-    return S, L, eig_vecs, eig_maps
+    return S, eig_vecs, eig_maps

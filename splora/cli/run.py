@@ -71,27 +71,12 @@ def _get_parser():
         help="Estimate innovation signals. Default = False.",
         default=False,
     )
-    # optional.add_argument(
-    #     "-thr",
-    #     dest="thr",
-    #     type=float,
-    #     help="Threshold to be used on debiasing step. Default = 0.01",
-    #     default=1e-2,
-    # )
     optional.add_argument(
         "-eigthr",
         dest="eigthr",
         type=float,
         help="Threshold to be used on eigen value selection. Default = 0.25",
         default=0.25,
-    )
-    optional.add_argument(
-        "-l",
-        "--lambda",
-        dest="lambda_weight",
-        type=float,
-        help="Weight to multiply noise estimation for regularization. " "Default = 1.1",
-        default=1.1,
     )
     optional.add_argument(
         "-g",
@@ -135,9 +120,7 @@ def _get_parser():
         help="Factor to multiply noise estimate for lambda selection.",
         default=1,
     )
-    optional.add_argument(
-        "-v", "--version", action="version", version=("%(prog)s " + __version__)
-    )
+    optional.add_argument("-v", "--version", action="version", version=("%(prog)s " + __version__))
 
     parser._action_groups.append(optional)
 
