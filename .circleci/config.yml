@@ -43,7 +43,7 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: conda-py37-v1-{{ checksum "splora/info.py" }}
+          key: conda-py37-v1-{{ checksum "setup.cfg" }}
       - run:
           name: Running unit tests
           command: |
