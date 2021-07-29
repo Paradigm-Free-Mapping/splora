@@ -17,6 +17,7 @@ def splora(
     mask_filename,
     output_filename,
     tr,
+    out_dir,
     te=[0],
     eigthr=0.1,
     group=0,
@@ -38,6 +39,8 @@ def splora(
         Base filename for all splora outputs.
     tr : float
         TR of the acquisition.
+    out_dir : str or path
+        Path to output directory.
     te : list, optional
         TE of the acquisition in ms, by default [0]
     eigthr : float, optional
@@ -58,7 +61,7 @@ def splora(
     """
     te_str = str(te).strip("[]")
     arguments = f"-i {data_filename} -m {mask_filename} -o {output_filename} -tr {tr} "
-    arguments += f"-te {te_str} -eigthr {eigthr} -group {group} -crit {lambda_crit} "
+    arguments += f"-d {out_dir} -te {te_str} -eigthr {eigthr} -group {group} -crit {lambda_crit} "
     arguments += f"-factor {factor}"
     if do_debias:
         arguments += "--debias "
