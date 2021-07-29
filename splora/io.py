@@ -102,25 +102,25 @@ def update_header(filename, command):
     run(f'3dNotes -h "{command}" {filename}', shell=True)
 
 
-def write_data(data, filename, dims, idxs, header, command_str):
+def write_data(data, filename, dims, idxs, header, command):
     """Write data into NIFTI file.
 
     Parameters
     ----------
-    data : [type]
-        [description]
-    filename : [type]
-        [description]
-    dims : [type]
-        [description]
-    idxs : [type]
-        [description]
-    header : [type]
-        [description]
-    command_str : [type]
-        [description]
+    data : (T x S)
+        Data in 2D.
+    filename : str or path
+        Name of the output file.
+    dims : list
+        List with dimensions of data.
+    idxs : (S x) array_like
+        Indexes to transform data back to 4D.
+    header : nib.header
+        Header of the input data.
+    command : str
+        splora command to add to the header.
     """
     reshaped = reshape_data(data, dims, idxs)
     U_nib = nib.Nifti1Image(reshaped, None, header=header)
     U_nib.to_filename(filename)
-    update_header(filename, command_str)
+    update_header(filename, command)
