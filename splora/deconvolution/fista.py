@@ -214,7 +214,6 @@ def fista(
     Ut, St, Vt = linalg.svd(y, full_matrices=False, compute_uv=True, check_finite=True)
 
     St_diff = abs(np.diff(St) / St[1:])
-    breakpoint()
     keep_diff = np.where(St_diff >= eigen_thr)[0]
 
     diff_old = -1
