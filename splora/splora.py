@@ -14,7 +14,7 @@ from splora.deconvolution.hrf_matrix import HRFMatrix
 from splora.io import read_data, write_data
 
 LGR = logging.getLogger("GENERAL")
-# RefLGR = logging.getLogger("REFERENCES")
+RefLGR = logging.getLogger("REFERENCES")
 
 
 def splora(
@@ -104,7 +104,7 @@ def splora(
     if all(i >= 1 for i in te):
         te = [x / 1000 for x in te]
 
-    LGR("Reading data...")
+    LGR.info("Reading data...")
     if n_te == 1:
         data_masked, data_header, dims, mask_idxs = read_data(data_filename[0], mask_filename)
         nscans = data_masked.shape[0]
@@ -119,15 +119,15 @@ def splora(
             else:
                 data_masked = np.concatenate((data_masked, data_temp), axis=0)
 
-            LGR(f"{te_idx + 1}/{n_te} echoes...")
+            LGR.info(f"{te_idx + 1}/{n_te} echoes...")
 
-    LGR("Data read.")
+    LGR.info("Data read.")
 
     hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=block_model)
     hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
 
     S, eigen_vecs, eigen_maps = fista(
-        X=hrf_norm,
+        hrf=hrf_norm,
         y=data_masked,
         n_te=n_te,
         lambda_crit=lambda_crit,
@@ -139,7 +139,7 @@ def splora(
     # Debiasing
     if do_debias:
         if block_model:
-            hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, has_integrator=False)
+            hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=False)
             hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
             S_deb = debiasing_block(auc=S, hrf=hrf_norm, y=data_masked)
             S_fitts = np.dot(hrf_norm, S_deb)
@@ -149,7 +149,7 @@ def splora(
         S_deb = S
         S_fitts = np.dot(hrf_norm, S_deb)
 
-    LGR("Saving results...")
+    LGR.info("Saving results...")
     # Save innovation signal
     if block_model:
         output_name = f"{output_filename}_innovation.nii.gz"
@@ -185,8 +185,16 @@ def splora(
             output_name = f"{output_filename}_eigenmap_{i+1}.nii.gz"
             write_data(low_rank_map, output_name, dims, mask_idxs, data_header, command_str)
 
-    LGR("Results saved.")
-    LGR("Low-Rank and Sparse PFM finished.")
+    LGR.info("Results saved.")
+
+    RefLGR.info(
+        "Uruñuela, E., Moia, S., & Caballero-Gaudes, C. (2021, April). A Low Rank "
+        "and Sparse Paradigm Free Mapping Algorithm For Deconvolution of FMRI Data. "
+        "In 2021 IEEE 18th International Symposium on Biomedical Imaging (ISBI) "
+        "(pp. 1726-1729). IEEE."
+    )
+
+    LGR.info("Low-Rank and Sparse PFM finished.")
     utils.teardown_loggers()
 
 

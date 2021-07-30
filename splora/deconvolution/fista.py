@@ -171,7 +171,7 @@ def fista(
     eigen_thr : float, optional
         Minimum percentage gap between the eigen values of selected low-rank components,
         by default 0.1
-    tol : [type], optional
+    tol : float, optional
         Value to which FISTA is considered to have converged, by default 1e-6
     factor : int, optional
         Factor by which the regularization parameter lambda is multiplied, by default 1
@@ -224,7 +224,7 @@ def fista(
             break
         diff_old = keep_diff[i]
 
-    LGR(f"{keep_idx} low-rank components found.")
+    LGR.info(f"{keep_idx} low-rank components found.")
 
     # Select lambda for each voxel based on criteria
     lambda_S, update_lambda, noise_estimate = select_lambda(
@@ -237,7 +237,7 @@ def fista(
     # Perform FISTA
     for num_iter in range(max_iter):
 
-        LGR(f"Iteration {num_iter + 1}/{max_iter}")
+        LGR.info(f"Iteration {num_iter + 1}/{max_iter}")
 
         # Save results from previous iteration
         S_old = S.copy()
