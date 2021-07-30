@@ -38,7 +38,7 @@ jobs:
 
   unittest_37:
     docker:
-      - image: continuumio/miniconda3
+      - image: nipype/nipype
     working_directory: /tmp/src/splora
     steps:
       - checkout
