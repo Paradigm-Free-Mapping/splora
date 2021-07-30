@@ -1,6 +1,7 @@
 """Main."""
 import datetime
 import logging
+import os
 import sys
 from os import path as op
 
@@ -86,6 +87,11 @@ def splora(
     if quiet:
         arguments += "-quiet"
     command_str = f"splora {arguments}"
+
+    # Generate output directory if it doesn't exist
+    out_dir = op.abspath(out_dir)
+    if not op.isdir(out_dir):
+        os.mkdir(out_dir)
 
     LGR = logging.getLogger("GENERAL")
     # RefLGR = logging.getLogger("REFERENCES")
