@@ -103,7 +103,7 @@ def debiasing_block(auc, hrf, y, dist=2):
     # Initiates beta matrix
     beta_out = np.zeros((nscans, nvoxels))
 
-    LGR("Starting debiasing step...")
+    LGR.info("Starting debiasing step...")
     # LGR('0% debiased...')
     # Performs debiasing
     for vox_idx in range(nvoxels):
@@ -116,7 +116,7 @@ def debiasing_block(auc, hrf, y, dist=2):
 
         beta_out[:, vox_idx], _ = debias_block(auc[:, vox_idx], hrf, y[:, vox_idx], is_ls=True)
 
-    LGR("Debiasing step finished")
+    LGR.info("Debiasing step finished")
     return beta_out
 
 
@@ -145,7 +145,7 @@ def debiasing_spike(hrf, y, auc):
 
     index_voxels = np.unique(np.where(abs(auc) > 10 * np.finfo(float).eps)[1])
 
-    LGR("Performing debiasing step...")
+    LGR.info("Performing debiasing step...")
 
     for voxidx in range(len(index_voxels)):
         index_events_opt = np.where(abs(auc[:, index_voxels[voxidx]]) > 10 * np.finfo(float).eps)[
@@ -162,5 +162,5 @@ def debiasing_spike(hrf, y, auc):
         fitts_out[:, index_voxels[voxidx]] = np.squeeze(np.dot(hrf, beta2save))
         beta_out[:, index_voxels[voxidx]] = beta2save.reshape(len(beta2save))
 
-    LGR("Debiasing step finished")
+    LGR.info("Debiasing step finished")
     return beta_out, fitts_out
