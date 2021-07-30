@@ -254,7 +254,7 @@ def fista(
 
         # Estimate S
         if group > 0:
-            S = proximal_operator_mixed_norm(z_ista_S, c_ist * lambda_S, rho_val=(1-group))
+            S = proximal_operator_mixed_norm(z_ista_S, c_ist * lambda_S, rho_val=(1 - group))
         else:
             S = proximal_operator_lasso(z_ista_S, c_ist * lambda_S)
 
