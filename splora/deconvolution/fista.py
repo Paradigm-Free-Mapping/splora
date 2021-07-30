@@ -146,6 +146,7 @@ def fista(
     eigen_thr=0.1,
     tol=1e-6,
     factor=1,
+    group=0.2,
 ):
     """Solve inverse problem with FISTA.
 
@@ -174,6 +175,8 @@ def fista(
         Value to which FISTA is considered to have converged, by default 1e-6
     factor : int, optional
         Factor by which the regularization parameter lambda is multiplied, by default 1
+    group : float, optional
+        Weight for grouping effect over sparsity, by default 0.2
 
     Returns
     -------
@@ -250,7 +253,10 @@ def fista(
         z_ista_L = y_ista_L + c_ist * data_fidelity
 
         # Estimate S
-        S = proximal_operator_lasso(z_ista_S, c_ist * lambda_S)
+        if group > 0:
+            S = proximal_operator_mixed_norm(z_ista_S, c_ist * lambda_S, rho_val=(1-group))
+        else:
+            S = proximal_operator_lasso(z_ista_S, c_ist * lambda_S)
 
         # Estimate L
         Ut, St, Vt = linalg.svd(z_ista_L, full_matrices=False, compute_uv=True, check_finite=True)

@@ -133,6 +133,7 @@ def splora(
         lambda_crit=lambda_crit,
         factor=factor,
         eigen_thr=eigthr,
+        group=group,
     )
 
     # Debiasing
