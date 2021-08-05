@@ -93,6 +93,11 @@ def splora(
     if not op.isdir(out_dir):
         os.mkdir(out_dir)
 
+    # Save command into sh file
+    command_file = open(os.path.join(out_dir, "call.sh"), "w")
+    command_file.write(command_str)
+    command_file.close()
+
     LGR = logging.getLogger("GENERAL")
     # RefLGR = logging.getLogger("REFERENCES")
     # create logfile name
@@ -116,13 +121,14 @@ def splora(
         nscans = data_masked.shape[0]
     elif n_te > 1:
         for te_idx in range(n_te):
-            data_temp, data_header, dims, mask_idxs = read_data(
-                data_filename[te_idx], mask_filename
-            )
             if te_idx == 0:
+                data_temp, data_header, dims, mask_idxs = read_data(
+                    data_filename[te_idx], mask_filename
+                )
                 data_masked = data_temp
                 nscans = data_temp.shape[0]
             else:
+                data_temp, _, _, _ = read_data(data_filename[te_idx], mask_filename, mask_idxs)
                 data_masked = np.concatenate((data_masked, data_temp), axis=0)
 
             LGR.info(f"{te_idx + 1}/{n_te} echoes...")

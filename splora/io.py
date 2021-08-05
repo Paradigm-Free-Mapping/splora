@@ -5,7 +5,7 @@ import nibabel as nib
 import numpy as np
 
 
-def read_data(data_filename, mask_filename):
+def read_data(data_filename, mask_filename, mask_idxs=None):
     """Read data from filename and apply mask.
 
     Parameters
@@ -45,7 +45,9 @@ def read_data(data_filename, mask_filename):
     data_restruct_temp = np.reshape(
         np.moveaxis(data_masked, -1, 0), (dims[-1], np.prod(data_img.shape[:-1]))
     )
-    mask_idxs = np.unique(np.nonzero(data_restruct_temp)[1])
+
+    if mask_idxs is None:
+        mask_idxs = np.unique(np.nonzero(data_restruct_temp)[1])
     data_restruct = data_restruct_temp[:, mask_idxs]
 
     return data_restruct, data_header, dims, mask_idxs

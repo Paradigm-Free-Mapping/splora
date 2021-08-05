@@ -103,7 +103,7 @@ def hrf_afni(TR, lop_hrf="SPMG1"):
         hrf = np.array([float(i) for i in hrf_tr_str])
         last_hrf_sample = hrf[len(hrf) - 1]
         if last_hrf_sample != 0:
-            LGR(
+            LGR.info(
                 "Duration of HRF was not sufficient for specified model. Doubling duration "
                 "and computing again."
             )
