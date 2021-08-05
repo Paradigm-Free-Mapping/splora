@@ -51,8 +51,7 @@ def proximal_operator_mixed_norm(y, thr, rho_val=0.8, groups="space"):
         Data thresholded with L2,1 + L1 mixed-norm proximal operator.
     """
     # Division parameter of proximal operator
-    div = y / np.abs(y)
-    div[np.isnan(div)] = 0
+    div = np.nan_to_num(y / np.abs(y))
 
     # First parameter of proximal operator
     p_one = np.maximum(np.zeros(y.shape), (np.abs(y) - thr * rho_val))
@@ -67,7 +66,9 @@ def proximal_operator_mixed_norm(y, thr, rho_val=0.8, groups="space"):
         foo = foo.reshape(1, len(foo))
         foo = np.dot(np.ones((y.shape[0], 1), foo))
 
-    p_two = np.maximum(np.zeros(y.shape), np.ones(y.shape) - thr * (1 - rho_val) / np.sqrt(foo))
+    p_two = np.maximum(
+        np.zeros(y.shape), np.ones(y.shape) - np.nan_to_num(thr * (1 - rho_val) / np.sqrt(foo))
+    )
 
     # Proximal operation
     x = div * p_one * p_two

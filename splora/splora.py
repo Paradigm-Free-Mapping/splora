@@ -72,10 +72,11 @@ def splora(
     quiet : :obj:`bool`, optional
         If True, suppresses logging/LGRing of messages. Default is False.
     """
+    data_str = str(data_filename).strip("[]")
     te_str = str(te).strip("[]")
-    arguments = f"-i {data_filename} -m {mask_filename} -o {output_filename} -tr {tr} "
+    arguments = f"-i {data_str} -m {mask_filename} -o {output_filename} -tr {tr} "
     arguments += f"-d {out_dir} -te {te_str} -eigthr {eigthr} -group {group} -crit {lambda_crit} "
-    arguments += f"-factor {factor}"
+    arguments += f"-factor {factor} "
     if do_debias:
         arguments += "--debias "
     if is_pfm:
@@ -107,6 +108,14 @@ def splora(
     logname = op.join(out_dir, (basename + start_time + "." + extension))
     refname = op.join(out_dir, "_references.txt")
     utils.setup_loggers(logname, refname, quiet=quiet, debug=debug)
+
+    # Main references
+    RefLGR.info(
+        "Uruñuela, E., Moia, S., & Caballero-Gaudes, C. (2021, April). A Low Rank "
+        "and Sparse Paradigm Free Mapping Algorithm For Deconvolution of FMRI Data. "
+        "In 2021 IEEE 18th International Symposium on Biomedical Imaging (ISBI) "
+        "(pp. 1726-1729). IEEE."
+    )
 
     LGR.info("Using output directory: {}".format(out_dir))
 
@@ -198,13 +207,6 @@ def splora(
             write_data(low_rank_map, output_name, dims, mask_idxs, data_header, command_str)
 
     LGR.info("Results saved.")
-
-    RefLGR.info(
-        "Uruñuela, E., Moia, S., & Caballero-Gaudes, C. (2021, April). A Low Rank "
-        "and Sparse Paradigm Free Mapping Algorithm For Deconvolution of FMRI Data. "
-        "In 2021 IEEE 18th International Symposium on Biomedical Imaging (ISBI) "
-        "(pp. 1726-1729). IEEE."
-    )
 
     LGR.info("Low-Rank and Sparse PFM finished.")
     utils.teardown_loggers()
