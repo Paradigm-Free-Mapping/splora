@@ -175,7 +175,9 @@ def splora(
     # Save innovation signal
     if block_model:
         output_name = f"{output_filename}_innovation.nii.gz"
-        write_data(S, output_name, dims, mask_idxs, data_header, command_str)
+        write_data(
+            S, os.path.join(out_dir, output_name), dims, mask_idxs, data_header, command_str
+        )
 
         if not do_debias:
             hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, has_integrator=False)
@@ -185,27 +187,45 @@ def splora(
 
     # Save activity-inducing signal
     output_name = f"{output_filename}_beta.nii.gz"
-    write_data(S_deb, output_name, dims, mask_idxs, data_header, command_str)
+    write_data(
+        S_deb, os.path.join(out_dir, output_name), dims, mask_idxs, data_header, command_str
+    )
 
     if n_te == 1:
         output_name = f"{output_filename}_fitts.nii.gz"
-        write_data(S_fitts, output_name, dims, mask_idxs, data_header, command_str)
+        write_data(
+            S_fitts, os.path.join(out_dir, output_name), dims, mask_idxs, data_header, command_str
+        )
     elif n_te > 1:
         for te_idx in range(n_te):
             te_data = S_fitts[te_idx * nscans : (te_idx + 1) * nscans, :]
             output_name = f"{output_filename}_fitts_E0{te_idx + 1}.nii.gz"
-            write_data(te_data, output_name, dims, mask_idxs, data_header, command_str)
+            write_data(
+                te_data,
+                os.path.join(out_dir, output_name),
+                dims,
+                mask_idxs,
+                data_header,
+                command_str,
+            )
 
     if pfm_only is False:
         # Saving eigen vectors and maps
         for i in range(eigen_vecs.shape[1]):
             # Time-series
             output_name = f"{output_filename}_eigenvec_{i+1}.1D"
-            np.savetxt(output_name, np.squeeze(eigen_vecs[:, i]))
+            np.savetxt(os.path.join(out_dir, output_name), np.squeeze(eigen_vecs[:, i]))
             # Maps
             low_rank_map = np.expand_dims(eigen_maps[i, :], axis=0)
             output_name = f"{output_filename}_eigenmap_{i+1}.nii.gz"
-            write_data(low_rank_map, output_name, dims, mask_idxs, data_header, command_str)
+            write_data(
+                low_rank_map,
+                os.path.join(out_dir, output_name),
+                dims,
+                mask_idxs,
+                data_header,
+                command_str,
+            )
 
     LGR.info("Results saved.")
 
