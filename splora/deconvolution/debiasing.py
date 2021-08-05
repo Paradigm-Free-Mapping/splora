@@ -5,6 +5,7 @@ import numpy as np
 import scipy as sci
 from scipy.signal import find_peaks
 from sklearn.linear_model import RidgeCV
+from tqdm import tqdm
 
 LGR = logging.getLogger("GENERAL")
 RefLGR = logging.getLogger("REFERENCES")
@@ -106,7 +107,7 @@ def debiasing_block(auc, hrf, y, dist=2):
     LGR.info("Starting debiasing step...")
     # LGR('0% debiased...')
     # Performs debiasing
-    for vox_idx in range(nvoxels):
+    for vox_idx in tqdm(range(nvoxels)):
         # Keep only maximum values in AUC peaks
         temp = np.zeros((auc.shape[0],))
         peak_idxs, _ = find_peaks(abs(auc[:, vox_idx]), distance=dist)
@@ -147,7 +148,7 @@ def debiasing_spike(hrf, y, auc):
 
     LGR.info("Performing debiasing step...")
 
-    for voxidx in range(len(index_voxels)):
+    for voxidx in tqdm(range(len(index_voxels))):
         index_events_opt = np.where(abs(auc[:, index_voxels[voxidx]]) > 10 * np.finfo(float).eps)[
             0
         ]
