@@ -148,6 +148,7 @@ def fista(
     tol=1e-6,
     factor=1,
     group=0.2,
+    pfm_only=False,
 ):
     """Solve inverse problem with FISTA.
 
@@ -178,6 +179,8 @@ def fista(
         Factor by which the regularization parameter lambda is multiplied, by default 1
     group : float, optional
         Weight for grouping effect over sparsity, by default 0.2
+    pfm_only : boolean, optional
+        Whether PFM is run with original formulation, i.e., no low-rank, by default False
 
     Returns
     -------
@@ -211,21 +214,22 @@ def fista(
     keep_idx = 1
     t_fista = 1
 
-    # Estimation of the number of low-rank components to keep
-    Ut, St, Vt = linalg.svd(y, full_matrices=False, compute_uv=True, check_finite=True)
+    if not pfm_only:
+        # Estimation of the number of low-rank components to keep
+        Ut, St, Vt = linalg.svd(y, full_matrices=False, compute_uv=True, check_finite=True)
 
-    St_diff = abs(np.diff(St) / St[1:])
-    keep_diff = np.where(St_diff >= eigen_thr)[0]
+        St_diff = abs(np.diff(St) / St[1:])
+        keep_diff = np.where(St_diff >= eigen_thr)[0]
 
-    diff_old = -1
-    for i in range(len(keep_diff)):
-        if (keep_diff[i] - diff_old) == 1:
-            keep_idx = keep_diff[i] + 1
-        else:
-            break
-        diff_old = keep_diff[i]
+        diff_old = -1
+        for i in range(len(keep_diff)):
+            if (keep_diff[i] - diff_old) == 1:
+                keep_idx = keep_diff[i] + 1
+            else:
+                break
+            diff_old = keep_diff[i]
 
-    LGR.info(f"{keep_idx} low-rank components found.")
+        LGR.info(f"{keep_idx} low-rank components found.")
 
     # Select lambda for each voxel based on criteria
     lambda_S, update_lambda, noise_estimate = select_lambda(
@@ -259,10 +263,13 @@ def fista(
         else:
             S = proximal_operator_lasso(z_ista_S, c_ist * lambda_S)
 
-        # Estimate L
-        Ut, St, Vt = linalg.svd(z_ista_L, full_matrices=False, compute_uv=True, check_finite=True)
-        St[keep_idx + 1 :] = 0
-        L = np.dot(np.dot(Ut, np.diag(St)), Vt)
+        if not pfm_only:
+            # Estimate L
+            Ut, St, Vt = linalg.svd(
+                z_ista_L, full_matrices=False, compute_uv=True, check_finite=True
+            )
+            St[keep_idx + 1 :] = 0
+            L = np.dot(np.dot(Ut, np.diag(St)), Vt)
 
         A = y_ista_A + np.dot(hrf, S - y_ista_S) + (L - y_ista_L)
 
@@ -291,19 +298,23 @@ def fista(
         if update_lambda:
             lambda_S = lambda_S * noise_estimate / nv
 
-    # Extract low-rank maps and time-series
-    Ut, St, Vt = linalg.svd(
-        np.nan_to_num(L), full_matrices=False, compute_uv=True, check_finite=True
-    )
+    if not pfm_only:
+        # Extract low-rank maps and time-series
+        Ut, St, Vt = linalg.svd(
+            np.nan_to_num(L), full_matrices=False, compute_uv=True, check_finite=True
+        )
 
-    # Normalize low-rank maps and time-series
-    eig_vecs = Ut[:, :keep_idx]
-    mean_eig_vecs = np.mean(eig_vecs, axis=0)
-    std_eig_vecs = np.std(eig_vecs, axis=0)
-    eig_vecs = (eig_vecs - mean_eig_vecs) / (std_eig_vecs)
-    eig_maps = Vt[:keep_idx, :]
-    mean_eig_maps = np.expand_dims(np.mean(eig_maps, axis=1), axis=1)
-    std_eig_maps = np.expand_dims(np.std(eig_maps, axis=1), axis=1)
-    eig_maps = (eig_maps - mean_eig_maps) / std_eig_maps
+        # Normalize low-rank maps and time-series
+        eig_vecs = Ut[:, :keep_idx]
+        mean_eig_vecs = np.mean(eig_vecs, axis=0)
+        std_eig_vecs = np.std(eig_vecs, axis=0)
+        eig_vecs = (eig_vecs - mean_eig_vecs) / (std_eig_vecs)
+        eig_maps = Vt[:keep_idx, :]
+        mean_eig_maps = np.expand_dims(np.mean(eig_maps, axis=1), axis=1)
+        std_eig_maps = np.expand_dims(np.std(eig_maps, axis=1), axis=1)
+        eig_maps = (eig_maps - mean_eig_maps) / std_eig_maps
+    else:
+        eig_vecs = None
+        eig_maps = None
 
     return S, eig_vecs, eig_maps

@@ -28,7 +28,7 @@ def splora(
     eigthr=0.1,
     group=0,
     do_debias=False,
-    is_pfm=False,
+    pfm_only=False,
     lambda_crit="mad_update",
     factor=1,
     block_model=False,
@@ -58,7 +58,7 @@ def splora(
         Weight for grouping effect over sparsity, by default 0
     do_debias : bool, optional
         Whether to perform the debiasing step, by default False
-    is_pfm : bool, optional
+    pfm_only : bool, optional
         Whether to run without the low-rank model, by default False
     lambda_crit : str, optional
         Criteria to select regularization parameter lambda, by default "mad_update"
@@ -79,7 +79,7 @@ def splora(
     arguments += f"-factor {factor} "
     if do_debias:
         arguments += "--debias "
-    if is_pfm:
+    if pfm_only:
         arguments += "-pfm "
     if block_model:
         arguments += "-block "
@@ -155,6 +155,7 @@ def splora(
         factor=factor,
         eigen_thr=eigthr,
         group=group,
+        pfm_only=pfm_only,
     )
 
     # Debiasing
@@ -165,7 +166,7 @@ def splora(
             S_deb = debiasing_block(auc=S, hrf=hrf_norm, y=data_masked)
             S_fitts = np.dot(hrf_norm, S_deb)
         else:
-            S_deb, S_fitts = debiasing_spike(x=hrf_norm, y=data_masked, beta=S)
+            S_deb, S_fitts = debiasing_spike(hrf=hrf_norm, y=data_masked, auc=S)
     else:
         S_deb = S
         S_fitts = np.dot(hrf_norm, S_deb)
@@ -195,7 +196,7 @@ def splora(
             output_name = f"{output_filename}_fitts_E0{te_idx + 1}.nii.gz"
             write_data(te_data, output_name, dims, mask_idxs, data_header, command_str)
 
-    if is_pfm is False:
+    if pfm_only is False:
         # Saving eigen vectors and maps
         for i in range(eigen_vecs.shape[1]):
             # Time-series

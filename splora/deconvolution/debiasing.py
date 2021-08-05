@@ -125,13 +125,13 @@ def debiasing_spike(hrf, y, auc):
 
     Parameters
     ----------
-    auc : (T x S) array_like
-        Matrix containing the non-zero coefficients selected as neuronal-related.
     hrf : (E x T) array_like
         Matrix containing shifted HRFs in its columns. E stands for the number of volumes times
         the number of echo-times.
     y : (T x S) array_like
         Matrix with fMRI data provided to splora.
+    auc : (T x S) array_like
+        Matrix containing the non-zero coefficients selected as neuronal-related.
 
     Returns
     -------
