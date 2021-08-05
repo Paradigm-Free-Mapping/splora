@@ -1,4 +1,4 @@
-# SParse and LOw-RAnk Paradigm Free Mapping
+# Sparse and Low-Rank Paradigm Free Mapping
 
 Repository for SPLORA PFM.
 
