@@ -105,7 +105,7 @@ def _get_parser():
     optional.add_argument(
         "-pfm",
         "--pfm",
-        dest="is_pfm",
+        dest="pfm_only",
         action="store_true",
         help="Use original PFM formulation without low-rank. Default = False.",
         default=False,
