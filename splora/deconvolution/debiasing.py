@@ -6,6 +6,7 @@ import scipy as sci
 from scipy.signal import find_peaks
 from sklearn.linear_model import RidgeCV
 from tqdm import tqdm
+from joblib import Parallel, delayed
 
 LGR = logging.getLogger("GENERAL")
 RefLGR = logging.getLogger("REFERENCES")
@@ -121,6 +122,21 @@ def debiasing_block(auc, hrf, y, dist=2):
     return beta_out
 
 
+def debias_spike(hrf, y, auc):
+
+    index_events_opt = np.where(abs(auc) > 10 * np.finfo(float).eps)[0]
+    beta2save = np.zeros((auc.shape[0], 1))
+
+    hrf_events = hrf[:, index_events_opt]
+
+    coef_LSfitdebias, _, _, _ = sci.linalg.lstsq(hrf_events, y, cond=None)
+    beta2save[index_events_opt, 0] = coef_LSfitdebias
+    fitts_out = np.squeeze(np.dot(hrf, beta2save))
+    beta_out = beta2save.reshape(len(beta2save))
+
+    return beta_out, fitts_out
+
+
 def debiasing_spike(hrf, y, auc):
     """Perform voxelwise debiasing with spike model.
 
@@ -147,21 +163,14 @@ def debiasing_spike(hrf, y, auc):
     index_voxels = np.unique(np.where(abs(auc) > 10 * np.finfo(float).eps)[1])
 
     LGR.info("Performing debiasing step...")
+    debiased = Parallel(n_jobs=-1, backend="multiprocessing")(
+        delayed(debias_spike)(hrf, y[:, index_voxels[voxidx]], auc[:, index_voxels[voxidx]])
+        for voxidx in tqdm(range(len(index_voxels)))
+    )
 
-    for voxidx in tqdm(range(len(index_voxels))):
-        index_events_opt = np.where(abs(auc[:, index_voxels[voxidx]]) > 10 * np.finfo(float).eps)[
-            0
-        ]
-        beta2save = np.zeros((auc.shape[0], 1))
-
-        hrf_events = hrf[:, index_events_opt]
-
-        coef_LSfitdebias, _, _, _ = sci.linalg.lstsq(
-            hrf_events, y[:, index_voxels[voxidx]], cond=None
-        )
-        beta2save[index_events_opt, 0] = coef_LSfitdebias
-        fitts_out[:, index_voxels[voxidx]] = np.squeeze(np.dot(hrf, beta2save))
-        beta_out[:, index_voxels[voxidx]] = beta2save.reshape(len(beta2save))
+    for voxidx in range(len(index_voxels)):
+        beta_out[:, index_voxels[voxidx]] = debiased[voxidx][0]
+        fitts_out[:, index_voxels[voxidx]] = debiased[voxidx][1]
 
     LGR.info("Debiasing step finished")
     return beta_out, fitts_out
