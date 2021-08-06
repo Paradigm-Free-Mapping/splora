@@ -13,18 +13,18 @@ RefLGR = logging.getLogger("REFERENCES")
 
 
 # Performs the debiasing step on an AUC timeseries obtained considering the integrator model
-def debias_block(auc, hrf, y, is_ls):
+def innovation_to_block(hrf, y, auc, is_ls):
     """Perform debiasing with the block model.
 
     Parameters
     ----------
-    auc : (T x S) array_like
-        Matrix containing the non-zero coefficients selected as neuronal-related.
     hrf : (E x T) array_like
         Matrix containing shifted HRFs in its columns. E stands for the number of volumes times
         the number of echo-times.
     y : (T x S) array_like
         Matrix with fMRI data provided to splora.
+    auc : (T x S) array_like
+        Matrix containing the non-zero coefficients selected as neuronal-related.
     is_ls : bool
         Whether least squares is solved in favor of ridge regression.
 
@@ -79,18 +79,50 @@ def debias_block(auc, hrf, y, is_ls):
     return beta, S
 
 
-def debiasing_block(auc, hrf, y, dist=2):
+def do_debias_block(hrf, y, auc, dist=2):
+    """Perform debiasing with the block model.
+
+    Parameters
+    ----------
+    hrf : (E x T) array_like
+        Matrix containing shifted HRFs in its columns. E stands for the number of volumes times
+        the number of echo-times.
+    y : (T x 1) array_like
+        Matrix with fMRI data provided to splora in a voxel.
+    auc : (T x 1) array_like
+        Matrix containing the non-zero coefficients selected as neuronal-related in a voxel.
+    dist : int, optional
+        Minimum number of TRs in between of the peaks found, by default 2
+
+    Returns
+    -------
+    beta_out : array_like
+        Debiased activity-inducing signal obtained from estimated innovation signal in a voxel.
+    """
+    # Keep only maximum values in AUC peaks
+    temp = np.zeros((auc.shape[0],))
+    peak_idxs, _ = find_peaks(abs(auc), distance=dist)
+    temp[peak_idxs] = auc[peak_idxs].copy()
+
+    auc = temp.copy()
+
+    beta_out, _ = innovation_to_block(hrf, y, auc, is_ls=True)
+
+    return beta_out
+
+
+def debiasing_block(hrf, y, auc, dist=2):
     """Voxelwise block model debiasing workflow.
 
     Parameters
     ----------
-    auc : (T x S) array_like
-        Matrix containing the non-zero coefficients selected as neuronal-related.
     hrf : (E x T) array_like
         Matrix containing shifted HRFs in its columns. E stands for the number of volumes times
         the number of echo-times.
     y : (T x S) array_like
         Matrix with fMRI data provided to splora.
+    auc : (T x S) array_like
+        Matrix containing the non-zero coefficients selected as neuronal-related.
     dist : int, optional
         Minimum number of TRs in between of the peaks found, by default 2
 
@@ -106,24 +138,38 @@ def debiasing_block(auc, hrf, y, dist=2):
     beta_out = np.zeros((nscans, nvoxels))
 
     LGR.info("Starting debiasing step...")
-    # LGR('0% debiased...')
     # Performs debiasing
-    for vox_idx in tqdm(range(nvoxels)):
-        # Keep only maximum values in AUC peaks
-        temp = np.zeros((auc.shape[0],))
-        peak_idxs, _ = find_peaks(abs(auc[:, vox_idx]), distance=dist)
-        temp[peak_idxs] = auc[peak_idxs, vox_idx].copy()
-
-        auc[:, vox_idx] = temp.copy()
-
-        beta_out[:, vox_idx], _ = debias_block(auc[:, vox_idx], hrf, y[:, vox_idx], is_ls=True)
+    debiased = Parallel(n_jobs=-1, backend="multiprocessing")(
+        delayed(do_debias_block)(hrf, y[:, voxidx], auc[:, voxidx])
+        for voxidx in tqdm(range(nvoxels))
+    )
+    for vox_idx in range(nvoxels):
+        beta_out[:, vox_idx] = debiased[vox_idx]
 
     LGR.info("Debiasing step finished")
     return beta_out
 
 
-def debias_spike(hrf, y, auc):
+def do_debias_spike(hrf, y, auc):
+    """Perform debiasing with the spike model.
 
+    Parameters
+    ----------
+    hrf : (E x T) array_like
+        Matrix containing shifted HRFs in its columns. E stands for the number of volumes times
+        the number of echo-times.
+    y : (T x 1) array_like
+        Array with fMRI data of a voxel provided to splora.
+    auc : (T x 1) array_like
+        Array containing the non-zero coefficients selected as neuronal-related.
+
+    Returns
+    -------
+    beta_out : array_like
+        Debiased activity-inducing signal in a voxel.
+    fitts_out : array_like
+        Debiased activity-inducing signal convolved with the HRF in a voxel.
+    """
     index_events_opt = np.where(abs(auc) > 10 * np.finfo(float).eps)[0]
     beta2save = np.zeros((auc.shape[0], 1))
 
@@ -164,7 +210,7 @@ def debiasing_spike(hrf, y, auc):
 
     LGR.info("Performing debiasing step...")
     debiased = Parallel(n_jobs=-1, backend="multiprocessing")(
-        delayed(debias_spike)(hrf, y[:, index_voxels[voxidx]], auc[:, index_voxels[voxidx]])
+        delayed(do_debias_spike)(hrf, y[:, index_voxels[voxidx]], auc[:, index_voxels[voxidx]])
         for voxidx in tqdm(range(len(index_voxels)))
     )
 

@@ -163,7 +163,7 @@ def splora(
         if block_model:
             hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=False)
             hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
-            S_deb = debiasing_block(auc=S, hrf=hrf_norm, y=data_masked)
+            S_deb = debiasing_block(hrf=hrf_norm, y=data_masked, auc=S)
             S_fitts = np.dot(hrf_norm, S_deb)
         else:
             S_deb, S_fitts = debiasing_spike(hrf=hrf_norm, y=data_masked, auc=S)
