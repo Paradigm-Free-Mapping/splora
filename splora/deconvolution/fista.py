@@ -132,6 +132,10 @@ def select_lambda(hrf, y, criteria="mad_update", factor=1, pcg="0.7"):
     elif criteria == "pcg":
         max_lambda = np.mean(abs(np.dot(hrf.T, y)), axis=0)
         lambda_selection = max_lambda * pcg
+    elif criteria == "eigval":
+        random_signal = np.random.normal(loc=0.0, scale=np.mean(noise_estimate), size=y.shape)
+        _, s, _ = np.linalg.svd(random_signal)
+        lambda_selection = s[0]
 
     return lambda_selection, update_lambda, noise_estimate
 
@@ -229,12 +233,14 @@ def fista(
                 break
             diff_old = keep_diff[i]
 
-        LGR.info(f"{keep_idx} low-rank components found.")
+        LGR.info(f"{keep_idx} low-rank components found")
 
     # Select lambda for each voxel based on criteria
     lambda_S, update_lambda, noise_estimate = select_lambda(
         hrf, y, factor=factor, criteria=lambda_crit
     )
+
+    LGR.info(f"Selected lambda is {lambda_S}")
 
     if precision is None:
         precision = noise_estimate / 100000
