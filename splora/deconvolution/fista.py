@@ -324,4 +324,4 @@ def fista(
         eig_vecs = None
         eig_maps = None
 
-    return S, eig_vecs, eig_maps
+    return S, eig_vecs, eig_maps, noise_estimate, lambda_S

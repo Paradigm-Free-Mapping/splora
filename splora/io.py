@@ -3,6 +3,7 @@ from subprocess import run
 
 import nibabel as nib
 import numpy as np
+from nilearn import masking
 
 
 def read_data(data_filename, mask_filename, mask_idxs=None):
@@ -31,29 +32,30 @@ def read_data(data_filename, mask_filename, mask_idxs=None):
     data = data_img.get_fdata()
     dims = data.shape
 
-    mask = nib.load(mask_filename).get_fdata()
-    data_masked = np.zeros((dims[0], dims[1], dims[2], dims[3]))
+    mask = nib.load(mask_filename)
+    # data_masked = np.zeros((dims[0], dims[1], dims[2], dims[3]))
 
-    # Masks data
-    if len(mask.shape) < 4:
-        for i in range(dims[-1]):
-            data_masked[:, :, :, i] = np.squeeze(data[:, :, :, i]) * mask
-    else:
-        data_masked = data * mask
+    # # Masks data
+    # if len(mask.shape) < 4:
+    #     for i in range(dims[-1]):
+    #         data_masked[:, :, :, i] = np.squeeze(data[:, :, :, i]) * mask
+    # else:
+    #     data_masked = data * mask
 
-    # Initiates data_restruct to make loop faster
-    data_restruct_temp = np.reshape(
-        np.moveaxis(data_masked, -1, 0), (dims[-1], np.prod(data_img.shape[:-1]))
-    )
+    # # Initiates data_restruct to make loop faster
+    # data_restruct_temp = np.reshape(
+    #     np.moveaxis(data_masked, -1, 0), (dims[-1], np.prod(data_img.shape[:-1]))
+    # )
 
-    if mask_idxs is None:
-        mask_idxs = np.unique(np.nonzero(data_restruct_temp)[1])
-    data_restruct = data_restruct_temp[:, mask_idxs]
+    # if mask_idxs is None:
+    #     mask_idxs = np.unique(np.nonzero(data_restruct_temp)[1])
+    # data_restruct = data_restruct_temp[:, mask_idxs]
+    data_restruct = masking.apply_mask(data_img, mask)
 
-    return data_restruct, data_header, dims, mask_idxs
+    return data_restruct, data_header, mask
 
 
-def reshape_data(signal2d, dims, mask_idxs):
+def reshape_data(signal2d, mask):
     """Reshape data from 2D back to 4D.
 
     Parameters
@@ -70,21 +72,22 @@ def reshape_data(signal2d, dims, mask_idxs):
     signal4d : (S x S x S x T) array_like
         Data in 4D.
     """
-    signal4d = np.zeros((dims[0] * dims[1] * dims[2], signal2d.shape[0]))
-    idxs = 0
+    # signal4d = np.zeros((dims[0] * dims[1] * dims[2], signal2d.shape[0]))
+    # idxs = 0
 
-    # Merges signal on mask indices with blank image
-    for i in range(signal2d.shape[0]):
-        if len(mask_idxs.shape) > 3:
-            idxs = np.where(mask_idxs[:, :, :, i] != 0)
-        else:
-            idxs = mask_idxs
+    # # Merges signal on mask indices with blank image
+    # for i in range(signal2d.shape[0]):
+    #     if len(mask_idxs.shape) > 3:
+    #         idxs = np.where(mask_idxs[:, :, :, i] != 0)
+    #     else:
+    #         idxs = mask_idxs
 
-        signal4d[idxs, i] = signal2d[i, :]
+    #     signal4d[idxs, i] = signal2d[i, :]
 
-    # Reshapes matrix from 2D to 4D double
-    signal4d = np.reshape(signal4d, (dims[0], dims[1], dims[2], signal2d.shape[0]))
-    del signal2d, idxs, dims, mask_idxs
+    # # Reshapes matrix from 2D to 4D double
+    # signal4d = np.reshape(signal4d, (dims[0], dims[1], dims[2], signal2d.shape[0]))
+    # del signal2d, idxs, dims, mask_idxs
+    signal4d = masking.unmask(signal2d, mask)
     return signal4d
 
 
@@ -102,7 +105,7 @@ def update_header(filename, command):
     run(f'3dNotes -h "{command}" {filename}', shell=True)
 
 
-def write_data(data, filename, dims, idxs, header, command):
+def write_data(data, filename, mask, header, command):
     """Write data into NIFTI file.
 
     Parameters
@@ -120,7 +123,7 @@ def write_data(data, filename, dims, idxs, header, command):
     command : str
         splora command to add to the header.
     """
-    reshaped = reshape_data(data, dims, idxs)
-    U_nib = nib.Nifti1Image(reshaped, None, header=header)
+    reshaped = reshape_data(data, mask)
+    U_nib = nib.Nifti1Image(reshaped.get_fdata(), None, header=header)
     U_nib.to_filename(filename)
     update_header(filename, command)
