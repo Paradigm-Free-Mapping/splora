@@ -112,6 +112,7 @@ def select_lambda(hrf, y, criteria="mad_update", factor=1, pcg="0.7"):
     # Use last echo to estimate noise
     if hrf.shape[0] > nt:
         y = y[-nt:, :]
+        print(y.shape)
 
     _, cD1 = wavedec(y, "db3", level=1, axis=0)
     noise_estimate = median_absolute_deviation(cD1) / 0.6745  # 0.8095
@@ -134,7 +135,7 @@ def select_lambda(hrf, y, criteria="mad_update", factor=1, pcg="0.7"):
         lambda_selection = max_lambda * pcg
     elif criteria == "eigval":
         random_signal = np.random.normal(loc=0.0, scale=np.mean(noise_estimate), size=y.shape)
-        _, s, _ = np.linalg.svd(random_signal)
+        s = np.linalg.svd(random_signal, compute_uv=False)
         lambda_selection = s[0]
 
     return lambda_selection, update_lambda, noise_estimate

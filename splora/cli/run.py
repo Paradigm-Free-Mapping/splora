@@ -115,7 +115,7 @@ def _get_parser():
         "--criteria",
         dest="lambda_crit",
         type=str,
-        choices=["mad", "mad_update", "ut", "lut", "factor", "pcg"],
+        choices=["mad", "mad_update", "ut", "lut", "factor", "pcg", "eigval"],
         help="Criteria with which lambda is selected to estimate activity-inducing "
         "and innovation signals.",
         default="mad_update",
