@@ -5,7 +5,6 @@ from splora.deconvolution import fista
 from splora.tests.utils import get_test_data_path
 
 data_dir = get_test_data_path()
-print(os.listdir(data_dir))
 hrf = np.load(os.path.join(data_dir, "hrf_matrix.npy"))
 y = np.loadtxt(os.path.join(data_dir, "visual_task.1d"))
 y_out = np.load(os.path.join(data_dir, "visual_task_output.npy"))
@@ -63,5 +62,12 @@ def test_select_lambda():
 
 
 def test_fista():
-    beta, _, _ = fista.fista(hrf=hrf, y=np.expand_dims(y, axis=1), n_te=1, pfm_only=True)
+    beta, _, _ = fista.fista(
+        hrf=hrf,
+        y=np.expand_dims(y, axis=1),
+        n_te=1,
+        pfm_only=True,
+        lambda_crit="factor",
+        factor=20,
+    )
     assert np.allclose(np.squeeze(beta), y_out)
