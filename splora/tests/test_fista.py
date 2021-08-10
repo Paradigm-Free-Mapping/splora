@@ -70,4 +70,4 @@ def test_fista():
         lambda_crit="factor",
         factor=20,
     )
-    assert np.allclose(np.squeeze(beta), y_out)
+    assert np.array_equal(beta, y_out)
