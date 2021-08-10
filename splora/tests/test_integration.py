@@ -78,7 +78,6 @@ def test_integration_multi_echo(skip_integration):
         "test_eigenvec_3.1D",
         "test_eigenmap_3.nii.gz",
         "test_fitts_E04.nii.gz",
-        "test_innovation.nii.gz",
         "test_eigenmap_1.nii.gz",
         "test_eigenvec_2.1D",
     ]
