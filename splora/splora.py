@@ -126,18 +126,16 @@ def splora(
 
     LGR.info("Reading data...")
     if n_te == 1:
-        data_masked, data_header, dims, mask_idxs = read_data(data_filename[0], mask_filename)
+        data_masked, data_header, mask_img = read_data(data_filename[0], mask_filename)
         nscans = data_masked.shape[0]
     elif n_te > 1:
         for te_idx in range(n_te):
+            data_temp, data_header, mask_img = read_data(data_filename[te_idx], mask_filename)
             if te_idx == 0:
-                data_temp, data_header, dims, mask_idxs = read_data(
-                    data_filename[te_idx], mask_filename
-                )
                 data_masked = data_temp
                 nscans = data_temp.shape[0]
             else:
-                data_temp, _, _, _ = read_data(data_filename[te_idx], mask_filename, mask_idxs)
+                # data_temp, _, _, _ = read_data(data_filename[te_idx], mask_filename, mask_idxs)
                 data_masked = np.concatenate((data_masked, data_temp), axis=0)
 
             LGR.info(f"{te_idx + 1}/{n_te} echoes...")
@@ -147,7 +145,7 @@ def splora(
     hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=block_model)
     hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
 
-    S, eigen_vecs, eigen_maps = fista(
+    S, eigen_vecs, eigen_maps, noise_estimate, lambda_val = fista(
         hrf=hrf_norm,
         y=data_masked,
         n_te=n_te,
@@ -175,9 +173,7 @@ def splora(
     # Save innovation signal
     if block_model:
         output_name = f"{output_filename}_innovation.nii.gz"
-        write_data(
-            S, os.path.join(out_dir, output_name), dims, mask_idxs, data_header, command_str
-        )
+        write_data(S, os.path.join(out_dir, output_name), mask_img, data_header, command_str)
 
         if not do_debias:
             hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, has_integrator=False)
@@ -187,15 +183,11 @@ def splora(
 
     # Save activity-inducing signal
     output_name = f"{output_filename}_beta.nii.gz"
-    write_data(
-        S_deb, os.path.join(out_dir, output_name), dims, mask_idxs, data_header, command_str
-    )
+    write_data(S_deb, os.path.join(out_dir, output_name), mask_img, data_header, command_str)
 
     if n_te == 1:
         output_name = f"{output_filename}_fitts.nii.gz"
-        write_data(
-            S_fitts, os.path.join(out_dir, output_name), dims, mask_idxs, data_header, command_str
-        )
+        write_data(S_fitts, os.path.join(out_dir, output_name), mask_img, data_header, command_str)
     elif n_te > 1:
         for te_idx in range(n_te):
             te_data = S_fitts[te_idx * nscans : (te_idx + 1) * nscans, :]
@@ -203,8 +195,7 @@ def splora(
             write_data(
                 te_data,
                 os.path.join(out_dir, output_name),
-                dims,
-                mask_idxs,
+                mask_img,
                 data_header,
                 command_str,
             )
@@ -221,11 +212,28 @@ def splora(
             write_data(
                 low_rank_map,
                 os.path.join(out_dir, output_name),
-                dims,
-                mask_idxs,
+                mask_img,
                 data_header,
                 command_str,
             )
+
+    # Save noise estimate and lambda
+    output_name = f"{output_filename}_MAD.nii.gz"
+    write_data(
+        np.expand_dims(noise_estimate, axis=0),
+        os.path.join(out_dir, output_name),
+        mask_img,
+        data_header,
+        command_str,
+    )
+    output_name = f"{output_filename}_lambda.nii.gz"
+    write_data(
+        np.expand_dims(lambda_val, axis=0),
+        os.path.join(out_dir, output_name),
+        mask_img,
+        data_header,
+        command_str,
+    )
 
     LGR.info("Results saved.")
 
