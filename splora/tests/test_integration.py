@@ -3,6 +3,7 @@ import shutil
 import subprocess
 
 import numpy as np
+import pytest
 
 from splora import splora
 from splora.tests.utils import get_test_data_path
@@ -11,6 +12,9 @@ data_dir = get_test_data_path()
 
 
 def test_integration_single_echo(skip_integration):
+    if skip_integration:
+        pytest.skip("Skipping five-echo integration test")
+
     single_echo_files = [
         "test_lambda.nii.gz",
         "call.sh",
@@ -41,6 +45,9 @@ def test_integration_single_echo(skip_integration):
 
 
 def test_integration_multi_echo(skip_integration):
+    if skip_integration:
+        pytest.skip("Skipping five-echo integration test")
+
     data = [
         "p06.SBJ01_S09_Task11_e1.spc.det.nii.gz",
         "p06.SBJ01_S09_Task11_e2.spc.det.nii.gz",
