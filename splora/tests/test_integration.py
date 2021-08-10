@@ -49,26 +49,20 @@ def test_integration_multi_echo():
     ]
     mask = "mask.nii.gz"
     te = [15.4, 29.7, 44.0, 58.3]
-    prefix = "test"
-    tr = 2
-    crit = "mad_update"
-    block = True
-    debias = True
 
     os.chdir(data_dir)
     splora.splora(
         data_filename=data,
         mask_filename=mask,
-        tr=tr,
-        output_filename=prefix,
+        tr=2,
+        output_filename="test",
         out_dir="multi_echo",
         te=te,
         group=0.2,
-        do_debias=debias,
-        block_model=block,
-        lambda_crit=crit,
+        do_debias=True,
+        block_model=False,
+        lambda_crit="mad_update",
     )
-    breakpoint()
 
     multi_echo_files = [
         "test_fitts_E01.nii.gz",
