@@ -23,11 +23,12 @@ def test_integration_single_echo():
         "test_MAD.nii.gz",
     ]
 
+    os.chdir(data_dir)
     command = (
         "splora -i p06.SBJ01_S09_Task11_e2.spc.det.nii.gz -o test "
         "-m mask.nii.gz -tr 2 -crit mad_update --debias --block -d single_echo"
     )
-    subprocess.run(command, shell=True, cwd=data_dir)
+    subprocess.run(command, shell=True)
 
     files = os.listdir(os.path.join(data_dir, "single_echo"))
     for file in single_echo_files:
