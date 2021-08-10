@@ -5,6 +5,8 @@ from splora.deconvolution import fista
 from splora.tests.utils import get_test_data_path
 
 data_dir = get_test_data_path()
+print(os.getcwd())
+print(os.listdir(data_dir))
 hrf = np.load(os.path.join(data_dir, "hrf_matrix.npy"))
 y = np.loadtxt(os.path.join(data_dir, "visual_task.1D"))
 y_out = np.load(os.path.join(data_dir, "visual_task_output.npy"))
