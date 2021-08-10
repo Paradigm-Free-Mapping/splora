@@ -1,0 +1,1 @@
+Uruñuela, E., Moia, S., & Caballero-Gaudes, C. (2021, April). A Low Rank and Sparse Paradigm Free Mapping Algorithm For Deconvolution of FMRI Data. In 2021 IEEE 18th International Symposium on Biomedical Imaging (ISBI) (pp. 1726-1729). IEEE.

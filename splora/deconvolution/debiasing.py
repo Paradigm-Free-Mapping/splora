@@ -3,10 +3,10 @@ import logging
 
 import numpy as np
 import scipy as sci
+from joblib import Parallel, delayed
 from scipy.signal import find_peaks
 from sklearn.linear_model import RidgeCV
 from tqdm import tqdm
-from joblib import Parallel, delayed
 
 LGR = logging.getLogger("GENERAL")
 RefLGR = logging.getLogger("REFERENCES")

@@ -1,5 +1,6 @@
-import numpy as np
 from os.path import join as opj
+
+import numpy as np
 
 from splora.deconvolution import debiasing
 from splora.tests.utils import get_test_data_path

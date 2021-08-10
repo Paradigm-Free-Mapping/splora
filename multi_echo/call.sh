@@ -1,0 +1,1 @@
+splora -i 'p06.SBJ01_S09_Task11_e1.spc.det.nii.gz', 'p06.SBJ01_S09_Task11_e2.spc.det.nii.gz', 'p06.SBJ01_S09_Task11_e3.spc.det.nii.gz', 'p06.SBJ01_S09_Task11_e4.spc.det.nii.gz' -m mask.nii.gz -o test -tr 2 -d multi_echo -te 15.4, 29.7, 44.0, 58.3 -eigthr 0.1 -group 0.2 -crit mad_update -factor 1 --debias -block 

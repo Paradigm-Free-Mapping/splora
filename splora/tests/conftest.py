@@ -1,10 +1,11 @@
-import pytest
 import os
 import ssl
-from urllib.request import urlretrieve
+import tarfile
 from gzip import GzipFile
 from io import BytesIO
-import tarfile
+from urllib.request import urlretrieve
+
+import pytest
 import requests
 
 

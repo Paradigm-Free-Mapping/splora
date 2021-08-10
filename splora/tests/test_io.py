@@ -1,6 +1,7 @@
-import numpy as np
 import os
+
 import nibabel as nib
+import numpy as np
 
 from splora import io
 from splora.tests.utils import get_test_data_path
