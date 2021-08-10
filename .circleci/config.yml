@@ -47,6 +47,7 @@ jobs:
       - run:
           name: Running unit tests
           command: |
+            source /etc/afni/afni.sh
             source activate splora_py37  # depends on makeenv_37
             make unittest
             mkdir /tmp/src/coverage
