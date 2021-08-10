@@ -17,7 +17,7 @@ unittest:
 	@py.test --skipintegration --cov-append --cov-report term-missing --cov=splora splora/
 
 single-echo:
-	@py.test --log-cli-level=INFO --cov-append --cov-report term-missing --cov=tedana -k test_integration_single_echo splora/tests/test_integration.py
+	@py.test --log-cli-level=INFO --cov-append --cov-report term-missing --cov=splora -k test_integration_single_echo splora/tests/test_integration.py
 
 multi-echo:
-	@py.test --log-cli-level=INFO --cov-append --cov-report term-missing --cov=tedana -k test_integration_multi_echo splora/tests/test_integration.py
+	@py.test --log-cli-level=INFO --cov-append --cov-report term-missing --cov=splora -k test_integration_multi_echo splora/tests/test_integration.py

@@ -30,7 +30,7 @@ def test_integration_single_echo(skip_integration):
     os.chdir(data_dir)
     command = (
         "splora -i p06.SBJ01_S09_Task11_e2.spc.det.nii.gz -o test "
-        "-m mask.nii.gz -tr 2 -crit mad_update --debias --block -d single_echo"
+        "-m mask.nii.gz -tr 2 -crit mad_update --dir single_echo --debias --block"
     )
     subprocess.run(command, shell=True)
 
