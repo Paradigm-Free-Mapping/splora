@@ -166,10 +166,10 @@ workflows:
       - unittest_37:
           requires:
             - makeenv_37
-      - single-echo:
+      - single_echo:
           requires:
             - makeenv_37
-      - multi-echo:
+      - multi_echo:
           requires:
             - makeenv_37
       - style_check:
