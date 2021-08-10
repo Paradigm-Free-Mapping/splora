@@ -57,6 +57,27 @@ jobs:
           paths:
             - src/coverage/.coverage.py37
 
+  unittest_37:
+    docker:
+      - image: nipype/nipype
+    working_directory: /tmp/src/splora
+    steps:
+      - checkout
+      - restore_cache:
+          key: conda-py37-v1-{{ checksum "setup.cfg" }}
+      - run:
+          name: Running unit tests
+          command: |
+            source /etc/afni/afni.sh
+            source activate splora_py37  # depends on makeenv_37
+            make integrationtest
+            mkdir /tmp/src/coverage
+            mv /tmp/src/splora/.coverage /tmp/src/coverage/.coverage.py37
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - src/coverage/.coverage.py37
+
   style_check:
     docker:
       - image: nipype/nipype
@@ -124,9 +145,9 @@ workflows:
       - unittest_37:
           requires:
             - makeenv_37
-      # - integrationtest_37:
-      #     requires:
-      #       - makeenv_37
+      - integrationtest_37:
+          requires:
+            - makeenv_37
       - style_check:
           requires:
             - makeenv_37
@@ -136,5 +157,5 @@ workflows:
       - merge_coverage:
           requires:
             - unittest_37
-            # - integrationtest_37
+            - integrationtest_37
             - style_check

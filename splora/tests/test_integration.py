@@ -10,7 +10,7 @@ from splora.tests.utils import get_test_data_path
 data_dir = get_test_data_path()
 
 
-def test_splora_single_echo():
+def test_integration_single_echo():
     single_echo_files = [
         "test_lambda.nii.gz",
         "call.sh",
@@ -39,7 +39,7 @@ def test_splora_single_echo():
     shutil.rmtree(os.path.join(data_dir, "single_echo"))
 
 
-def test_splora_multi_echo():
+def test_integration_multi_echo():
     data = [
         "p06.SBJ01_S09_Task11_e1.spc.det.nii.gz",
         "p06.SBJ01_S09_Task11_e2.spc.det.nii.gz",
