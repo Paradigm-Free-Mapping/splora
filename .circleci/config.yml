@@ -57,7 +57,7 @@ jobs:
           paths:
             - src/coverage/.coverage.py37
 
-  unittest_37:
+  integrationtest_37:
     docker:
       - image: nipype/nipype
     working_directory: /tmp/src/splora
