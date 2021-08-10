@@ -62,7 +62,7 @@ def test_select_lambda():
 
 
 def test_fista():
-    beta, _, _ = fista.fista(
+    beta, _, _, noise_est, lambda_val = fista.fista(
         hrf=hrf,
         y=np.expand_dims(y, axis=1),
         n_te=1,
@@ -71,3 +71,5 @@ def test_fista():
         factor=20,
     )
     assert np.allclose(beta, y_out, atol=1e-5)
+    assert noise_est[0] == 0.002248865844940937
+    assert lambda_val[0] == 0.044977316898818745
