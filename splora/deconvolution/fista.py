@@ -79,7 +79,7 @@ def proximal_operator_mixed_norm(y, thr, rho_val=0.8, groups="space"):
     return x
 
 
-def select_lambda(hrf, y, criteria="mad_update", factor=1, pcg="0.7"):
+def select_lambda(hrf, y, criteria="mad_update", factor=1, pcg=0.7):
     """Criteria to select regularization parameter lambda.
 
     Parameters

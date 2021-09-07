@@ -2,7 +2,6 @@
 from subprocess import run
 
 import nibabel as nib
-import numpy as np
 from nilearn import masking
 
 
@@ -30,29 +29,11 @@ def read_data(data_filename, mask_filename, mask_idxs=None):
     data_img = nib.load(data_filename)
     data_header = data_img.header
     data = data_img.get_fdata()
-    dims = data.shape
 
     mask = nib.load(mask_filename)
-    # data_masked = np.zeros((dims[0], dims[1], dims[2], dims[3]))
+    data = masking.apply_mask(data_img, mask)
 
-    # # Masks data
-    # if len(mask.shape) < 4:
-    #     for i in range(dims[-1]):
-    #         data_masked[:, :, :, i] = np.squeeze(data[:, :, :, i]) * mask
-    # else:
-    #     data_masked = data * mask
-
-    # # Initiates data_restruct to make loop faster
-    # data_restruct_temp = np.reshape(
-    #     np.moveaxis(data_masked, -1, 0), (dims[-1], np.prod(data_img.shape[:-1]))
-    # )
-
-    # if mask_idxs is None:
-    #     mask_idxs = np.unique(np.nonzero(data_restruct_temp)[1])
-    # data_restruct = data_restruct_temp[:, mask_idxs]
-    data_restruct = masking.apply_mask(data_img, mask)
-
-    return data_restruct, data_header, mask
+    return data, data_header, mask
 
 
 def reshape_data(signal2d, mask):
@@ -62,31 +43,14 @@ def reshape_data(signal2d, mask):
     ----------
     signal2d : (T x S) array_like
         Data in 2D.
-    dims : list
-        List with dimensions of data.
-    mask_idxs : (S x) array_like
-        Indexes to transform data back to 4D.
+    mask : Nifti1Image
+        Mask.
 
     Returns
     -------
     signal4d : (S x S x S x T) array_like
         Data in 4D.
     """
-    # signal4d = np.zeros((dims[0] * dims[1] * dims[2], signal2d.shape[0]))
-    # idxs = 0
-
-    # # Merges signal on mask indices with blank image
-    # for i in range(signal2d.shape[0]):
-    #     if len(mask_idxs.shape) > 3:
-    #         idxs = np.where(mask_idxs[:, :, :, i] != 0)
-    #     else:
-    #         idxs = mask_idxs
-
-    #     signal4d[idxs, i] = signal2d[i, :]
-
-    # # Reshapes matrix from 2D to 4D double
-    # signal4d = np.reshape(signal4d, (dims[0], dims[1], dims[2], signal2d.shape[0]))
-    # del signal2d, idxs, dims, mask_idxs
     signal4d = masking.unmask(signal2d, mask)
     return signal4d
 
@@ -114,10 +78,8 @@ def write_data(data, filename, mask, header, command):
         Data in 2D.
     filename : str or path
         Name of the output file.
-    dims : list
-        List with dimensions of data.
-    idxs : (S x) array_like
-        Indexes to transform data back to 4D.
+    mask : Nifti1Image
+        Mask.
     header : nib.header
         Header of the input data.
     command : str
