@@ -1,12 +1,13 @@
 """FISTA solver for PFM."""
 import logging
-from os.path import join as opj
 
+import matplotlib.pyplot as plt
 import numpy as np
 from pywt import wavedec
 from scipy import linalg
 from scipy.stats import median_absolute_deviation
-from splora.io import write_data
+
+from splora.deconvolution.debiasing import debiasing_spike
 
 LGR = logging.getLogger("GENERAL")
 RefLGR = logging.getLogger("REFERENCES")
@@ -60,16 +61,21 @@ def proximal_operator_mixed_norm(y, thr, rho_val=0.8, groups="space"):
 
     # Second parameter of proximal operator
     if groups == "space":
-        foo = np.sum(np.maximum(np.zeros(y.shape), np.abs(y) - thr * rho_val) ** 2, axis=1)
+        foo = np.sum(
+            np.maximum(np.zeros(y.shape), np.abs(y) - thr * rho_val) ** 2, axis=1
+        )
         foo = foo.reshape(len(foo), 1)
         foo = np.dot(foo, np.ones((1, y.shape[1])))
     else:
-        foo = np.sum(np.maximum(np.zeros(y.shape), np.abs(y) - thr * rho_val) ** 2, axis=0)
+        foo = np.sum(
+            np.maximum(np.zeros(y.shape), np.abs(y) - thr * rho_val) ** 2, axis=0
+        )
         foo = foo.reshape(1, len(foo))
         foo = np.dot(np.ones((y.shape[0], 1), foo))
 
     p_two = np.maximum(
-        np.zeros(y.shape), np.ones(y.shape) - np.nan_to_num(thr * (1 - rho_val) / np.sqrt(foo))
+        np.zeros(y.shape),
+        np.ones(y.shape) - np.nan_to_num(thr * (1 - rho_val) / np.sqrt(foo)),
     )
 
     # Proximal operation
@@ -135,7 +141,9 @@ def select_lambda(hrf, y, criteria="mad_update", factor=1, pcg=0.7):
         max_lambda = np.mean(abs(np.dot(hrf.T, y)), axis=0)
         lambda_selection = max_lambda * pcg
     elif criteria == "eigval":
-        random_signal = np.random.normal(loc=0.0, scale=np.mean(noise_estimate), size=y.shape)
+        random_signal = np.random.normal(
+            loc=0.0, scale=np.mean(noise_estimate), size=y.shape
+        )
         s = np.linalg.svd(random_signal, compute_uv=False)
         lambda_selection = s[0]
 
@@ -203,9 +211,9 @@ def fista(
     nscans = hrf.shape[1]
 
     c_ist = 1 / (linalg.norm(hrf) ** 2)
-    hrf_trans = hrf.T
-    hrf_cov = np.dot(hrf_trans, hrf)
-    v = np.dot(hrf_trans, y)
+    # hrf_trans = hrf.T
+    # hrf_cov = np.dot(hrf_trans, hrf)
+    # v = np.dot(hrf_trans, y)
 
     y_fista_S = np.zeros((nscans, nvoxels), dtype=np.float32)
     y_fista_L = np.zeros(y.shape)
@@ -216,10 +224,10 @@ def fista(
         L = np.zeros((nscans, nvoxels))
     else:
         L = np.zeros((n_te * nscans, nvoxels))
-    A = L.copy()
+    A = y.copy()
     data_fidelity = y - y_fista_L
 
-    keep_idx = 1
+    keep_idx = 0
     t_fista = 1
 
     # Select lambda for each voxel based on criteria
@@ -237,7 +245,9 @@ def fista(
 
         LGR.info(f"Iteration {num_iter + 1}/{max_iter}")
 
-        data_fidelity = y - y_fista_A
+        data_fidelity = A.copy()  # - np.dot(hrf, S)
+
+        # breakpoint()
 
         # Save results from previous iteration
         S_old = S.copy()
@@ -271,18 +281,54 @@ def fista(
                 LGR.info(f"{keep_idx+1} low-rank components found")
 
             St[keep_idx + 1 :] = 0
-            L = np.dot(np.dot(Ut, np.diag(St)), Vt)
+            # breakpoint()
+            if num_iter == 0:
+                L = np.dot(np.dot(Ut, np.diag(St) / c_ist), Vt)
+                data_fidelity = y - L
+            else:
+                L = np.dot(np.dot(Ut, np.diag(St)), Vt)
+                data_fidelity = A - L
 
-        S_fidelity = data_fidelity[:nscans, :]
+        if n_te > 1:
+            S_fidelity = data_fidelity[nscans : 2 * nscans, :]
+        else:
+            S_fidelity = data_fidelity
         z_ista_S = y_ista_S + c_ist * S_fidelity
 
         # Estimate S
         if group > 0:
-            S = proximal_operator_mixed_norm(z_ista_S, c_ist * lambda_S, rho_val=(1 - group))
+            S = proximal_operator_mixed_norm(
+                z_ista_S, c_ist * lambda_S, rho_val=(1 - group)
+            )
         else:
             S = proximal_operator_lasso(z_ista_S, c_ist * lambda_S)
 
+        # if block_model:
+        #     hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=False)
+        #     hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
+        #     S_deb = debiasing_block(hrf=hrf_norm, y=data_masked, auc=S)
+        #     S_fitts = np.dot(hrf_norm, S_deb)
+        # else:
+        S, _ = debiasing_spike(hrf=hrf, y=y, auc=S)
+
+        # plt.plot(y_ista_S[:, 1000])
+        # plt.plot(data_fidelity[:, 1000])
+        # plt.show()
+        # breakpoint()
+
+        # plt.plot(S_old[:, 1000])
+        # plt.plot(S[:, 1000])
+        # plt.plot(S[:, 1000] + (S - S_old)[:, 1000])
+        # plt.show()
+        # breakpoint()
+
         A = y_ista_A + np.dot(hrf, S - y_ista_S) + (L - y_ista_L)
+
+        # plt.plot(A[:, 1000])
+        # plt.plot(L[:, 1000])
+        # plt.plot(np.dot(hrf, S)[:, 1000])
+        # plt.show()
+        # breakpoint()
 
         t_fista_old = t_fista
         t_fista = 0.5 * (1 + np.sqrt(1 + 4 * (t_fista_old ** 2)))
@@ -296,7 +342,10 @@ def fista(
 
         # Convergence
         if num_iter >= min_iter:
-            if any(abs(nv - noise_estimate) < precision) and lambda_crit == "mad_update":
+            if (
+                any(abs(nv - noise_estimate) < precision)
+                and lambda_crit == "mad_update"
+            ):
                 break
             elif linalg.norm(A - A_old) < tol * linalg.norm(A_old):
                 break
