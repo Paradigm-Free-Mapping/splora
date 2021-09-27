@@ -130,9 +130,7 @@ def splora(
         nscans = data_masked.shape[0]
     elif n_te > 1:
         for te_idx in range(n_te):
-            data_temp, data_header, mask_img = read_data(
-                data_filename[te_idx], mask_filename
-            )
+            data_temp, data_header, mask_img = read_data(data_filename[te_idx], mask_filename)
             if te_idx == 0:
                 data_masked = data_temp
                 nscans = data_temp.shape[0]
@@ -156,7 +154,9 @@ def splora(
         eigen_thr=eigthr,
         group=group,
         pfm_only=pfm_only,
-        out_dir=out_dir,
+        block_model=block_model,
+        tr=tr,
+        te=te,
     )
 
     # Debiasing
@@ -176,9 +176,7 @@ def splora(
     # Save innovation signal
     if block_model:
         output_name = f"{output_filename}_innovation.nii.gz"
-        write_data(
-            S, os.path.join(out_dir, output_name), mask_img, data_header, command_str
-        )
+        write_data(S, os.path.join(out_dir, output_name), mask_img, data_header, command_str)
 
         if not do_debias:
             hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, has_integrator=False)
@@ -188,9 +186,7 @@ def splora(
 
     # Save activity-inducing signal
     output_name = f"{output_filename}_beta.nii.gz"
-    write_data(
-        S_deb, os.path.join(out_dir, output_name), mask_img, data_header, command_str
-    )
+    write_data(S_deb, os.path.join(out_dir, output_name), mask_img, data_header, command_str)
 
     if n_te == 1:
         output_name = f"{output_filename}_fitts.nii.gz"
