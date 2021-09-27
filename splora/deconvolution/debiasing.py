@@ -3,10 +3,10 @@ import logging
 
 import numpy as np
 import scipy as sci
+from joblib import Parallel, delayed
 from scipy.signal import find_peaks
 from sklearn.linear_model import RidgeCV
 from tqdm import tqdm
-from joblib import Parallel, delayed
 
 LGR = logging.getLogger("GENERAL")
 RefLGR = logging.getLogger("REFERENCES")
@@ -111,7 +111,7 @@ def do_debias_block(hrf, y, auc, dist=2):
     return beta_out
 
 
-def debiasing_block(hrf, y, auc, dist=2):
+def debiasing_block(hrf, y, auc, dist=2, progress_bar=True):
     """Voxelwise block model debiasing workflow.
 
     Parameters
@@ -139,10 +139,17 @@ def debiasing_block(hrf, y, auc, dist=2):
 
     LGR.info("Starting debiasing step...")
     # Performs debiasing
-    debiased = Parallel(n_jobs=-1, backend="multiprocessing")(
-        delayed(do_debias_block)(hrf, y[:, voxidx], auc[:, voxidx])
-        for voxidx in tqdm(range(nvoxels))
-    )
+    if progress_bar:
+        debiased = Parallel(n_jobs=-1, backend="multiprocessing")(
+            delayed(do_debias_block)(hrf, y[:, voxidx], auc[:, voxidx])
+            for voxidx in tqdm(range(nvoxels))
+        )
+    else:
+        debiased = Parallel(n_jobs=-1, backend="multiprocessing")(
+            delayed(do_debias_block)(hrf, y[:, voxidx], auc[:, voxidx])
+            for voxidx in range(nvoxels)
+        )
+
     for vox_idx in range(nvoxels):
         beta_out[:, vox_idx] = debiased[vox_idx]
 
@@ -183,7 +190,7 @@ def do_debias_spike(hrf, y, auc):
     return beta_out, fitts_out
 
 
-def debiasing_spike(hrf, y, auc):
+def debiasing_spike(hrf, y, auc, progress_bar=True):
     """Perform voxelwise debiasing with spike model.
 
     Parameters
@@ -209,10 +216,16 @@ def debiasing_spike(hrf, y, auc):
     index_voxels = np.unique(np.where(abs(auc) > 10 * np.finfo(float).eps)[1])
 
     LGR.info("Performing debiasing step...")
-    debiased = Parallel(n_jobs=-1, backend="multiprocessing")(
-        delayed(do_debias_spike)(hrf, y[:, index_voxels[voxidx]], auc[:, index_voxels[voxidx]])
-        for voxidx in tqdm(range(len(index_voxels)))
-    )
+    if progress_bar:
+        debiased = Parallel(n_jobs=-1, backend="multiprocessing")(
+            delayed(do_debias_spike)(hrf, y[:, index_voxels[voxidx]], auc[:, index_voxels[voxidx]])
+            for voxidx in tqdm(range(len(index_voxels)))
+        )
+    else:
+        debiased = Parallel(n_jobs=-1, backend="multiprocessing")(
+            delayed(do_debias_spike)(hrf, y[:, index_voxels[voxidx]], auc[:, index_voxels[voxidx]])
+            for voxidx in range(len(index_voxels))
+        )
 
     for voxidx in range(len(index_voxels)):
         beta_out[:, index_voxels[voxidx]] = debiased[voxidx][0]

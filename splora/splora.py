@@ -9,8 +9,8 @@ import numpy as np
 
 from splora import utils
 from splora.cli.run import _get_parser
-from splora.deconvolution.debiasing import debiasing_block, debiasing_spike
 from splora.deconvolution import fista
+from splora.deconvolution.debiasing import debiasing_block, debiasing_spike
 from splora.deconvolution.hrf_matrix import HRFMatrix
 from splora.io import read_data, write_data
 
@@ -154,7 +154,9 @@ def splora(
         eigen_thr=eigthr,
         group=group,
         pfm_only=pfm_only,
-        out_dir=out_dir,
+        block_model=block_model,
+        tr=tr,
+        te=te,
     )
 
     # Debiasing
@@ -188,7 +190,13 @@ def splora(
 
     if n_te == 1:
         output_name = f"{output_filename}_fitts.nii.gz"
-        write_data(S_fitts, os.path.join(out_dir, output_name), mask_img, data_header, command_str)
+        write_data(
+            S_fitts,
+            os.path.join(out_dir, output_name),
+            mask_img,
+            data_header,
+            command_str,
+        )
     elif n_te > 1:
         for te_idx in range(n_te):
             te_data = S_fitts[te_idx * nscans : (te_idx + 1) * nscans, :]
@@ -208,9 +216,9 @@ def splora(
                 # Time-series
                 output_name = f"{output_filename}_eigenvec_{i+1}_E0{te_idx + 1}.1D"
                 if te_idx == 0:
-                    eig_echo = data_masked[:nscans, i]
+                    eig_echo = eigen_vecs[:nscans, i]
                 else:
-                    eig_echo = data_masked[te_idx * nscans : (te_idx + 1) * nscans, i]
+                    eig_echo = eigen_vecs[te_idx * nscans : (te_idx + 1) * nscans, i]
                 np.savetxt(os.path.join(out_dir, output_name), np.squeeze(eig_echo))
             # Maps
             low_rank_map = np.expand_dims(eigen_maps[i, :], axis=0)

@@ -1,12 +1,14 @@
 """FISTA solver for PFM."""
 import logging
-from os.path import join as opj
 
+import matplotlib.pyplot as plt
 import numpy as np
 from pywt import wavedec
 from scipy import linalg
 from scipy.stats import median_absolute_deviation
-from splora.io import write_data
+
+from splora.deconvolution.debiasing import debiasing_block, debiasing_spike
+from splora.deconvolution.hrf_matrix import HRFMatrix
 
 LGR = logging.getLogger("GENERAL")
 RefLGR = logging.getLogger("REFERENCES")
@@ -69,7 +71,8 @@ def proximal_operator_mixed_norm(y, thr, rho_val=0.8, groups="space"):
         foo = np.dot(np.ones((y.shape[0], 1), foo))
 
     p_two = np.maximum(
-        np.zeros(y.shape), np.ones(y.shape) - np.nan_to_num(thr * (1 - rho_val) / np.sqrt(foo))
+        np.zeros(y.shape),
+        np.ones(y.shape) - np.nan_to_num(thr * (1 - rho_val) / np.sqrt(foo)),
     )
 
     # Proximal operation
@@ -156,6 +159,9 @@ def fista(
     group=0.2,
     pfm_only=False,
     out_dir=None,
+    block_model=False,
+    tr=2,
+    te=[1],
 ):
     """Solve inverse problem with FISTA.
 
@@ -203,9 +209,9 @@ def fista(
     nscans = hrf.shape[1]
 
     c_ist = 1 / (linalg.norm(hrf) ** 2)
-    hrf_trans = hrf.T
-    hrf_cov = np.dot(hrf_trans, hrf)
-    v = np.dot(hrf_trans, y)
+    # hrf_trans = hrf.T
+    # hrf_cov = np.dot(hrf_trans, hrf)
+    # v = np.dot(hrf_trans, y)
 
     y_fista_S = np.zeros((nscans, nvoxels), dtype=np.float32)
     y_fista_L = np.zeros(y.shape)
@@ -216,10 +222,10 @@ def fista(
         L = np.zeros((nscans, nvoxels))
     else:
         L = np.zeros((n_te * nscans, nvoxels))
-    A = L.copy()
-    data_fidelity = y - y_fista_L
+    A = y.copy()
+    # data_fidelity = y - y_fista_L
 
-    keep_idx = 1
+    keep_idx = 0
     t_fista = 1
 
     # Select lambda for each voxel based on criteria
@@ -237,7 +243,7 @@ def fista(
 
         LGR.info(f"Iteration {num_iter + 1}/{max_iter}")
 
-        data_fidelity = y - y_fista_A
+        data_fidelity = A.copy() - np.dot(hrf, S)
 
         # Save results from previous iteration
         S_old = S.copy()
@@ -271,9 +277,18 @@ def fista(
                 LGR.info(f"{keep_idx+1} low-rank components found")
 
             St[keep_idx + 1 :] = 0
-            L = np.dot(np.dot(Ut, np.diag(St)), Vt)
 
-        S_fidelity = data_fidelity[:nscans, :]
+            if num_iter == 0:
+                L = np.dot(np.dot(Ut, np.diag(St) / c_ist), Vt)
+                data_fidelity = y - L
+            else:
+                L = np.dot(np.dot(Ut, np.diag(St)), Vt)
+                data_fidelity = A - L
+
+        if n_te > 1:
+            S_fidelity = data_fidelity[nscans : 2 * nscans, :]
+        else:
+            S_fidelity = data_fidelity
         z_ista_S = y_ista_S + c_ist * S_fidelity
 
         # Estimate S
@@ -281,6 +296,21 @@ def fista(
             S = proximal_operator_mixed_norm(z_ista_S, c_ist * lambda_S, rho_val=(1 - group))
         else:
             S = proximal_operator_lasso(z_ista_S, c_ist * lambda_S)
+
+        #  Perform debiasing to have both S and L on the same amplitude scale
+        if block_model:
+            hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=False)
+            hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
+            S_deb = debiasing_block(hrf=hrf_norm, y=y, auc=S)
+        else:
+            S, S_fitts = debiasing_spike(hrf=hrf, y=y, auc=S, progress_bar=False)
+
+        foo = np.zeros((nvoxels, Ut[:, :keep_idx].shape[1]))
+        for voxidx in range(nvoxels):
+            for lridx in range(Ut[:, :keep_idx].shape[1]):
+                foo[voxidx, lridx] = np.corrcoef(S_fitts[:, voxidx], Ut[:, lridx])[0][1]
+
+        # breakpoint()
 
         A = y_ista_A + np.dot(hrf, S - y_ista_S) + (L - y_ista_L)
 
