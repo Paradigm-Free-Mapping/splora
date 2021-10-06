@@ -1,6 +1,5 @@
 import os
 import shutil
-import subprocess
 
 import numpy as np
 import pytest
@@ -28,11 +27,23 @@ def test_integration_single_echo(skip_integration):
     ]
 
     os.chdir(data_dir)
-    command = (
-        "splora -i p06.SBJ01_S09_Task11_e2.spc.det.nii.gz -o test "
-        "-m mask.nii.gz -tr 2 -crit mad_update --dir single_echo --debias --block"
-    )
-    subprocess.run(command, shell=True, check=True)
+    args = [
+        "-i",
+        "p06.SBJ01_S09_Task11_e2.spc.det.nii.gz",
+        "-o",
+        "test",
+        "-m",
+        "mask.nii.gz",
+        "-tr",
+        "2",
+        "-crit",
+        "mad_update",
+        "--dir",
+        "single_echo",
+        "--debias",
+        "--block",
+    ]
+    splora._main(args)
 
     files = os.listdir(os.path.join(data_dir, "single_echo"))
     for file in single_echo_files:
