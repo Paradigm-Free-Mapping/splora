@@ -1,10 +1,14 @@
 """FISTA solver for PFM."""
 import logging
 
+import matplotlib.pyplot as plt
 import numpy as np
 from pywt import wavedec
 from scipy import linalg
 from scipy.stats import median_absolute_deviation
+
+from splora.deconvolution.debiasing import debiasing_block, debiasing_spike
+from splora.deconvolution.hrf_matrix import HRFMatrix
 
 LGR = logging.getLogger("GENERAL")
 RefLGR = logging.getLogger("REFERENCES")
@@ -67,7 +71,8 @@ def proximal_operator_mixed_norm(y, thr, rho_val=0.8, groups="space"):
         foo = np.dot(np.ones((y.shape[0], 1), foo))
 
     p_two = np.maximum(
-        np.zeros(y.shape), np.ones(y.shape) - np.nan_to_num(thr * (1 - rho_val) / np.sqrt(foo))
+        np.zeros(y.shape),
+        np.ones(y.shape) - np.nan_to_num(thr * (1 - rho_val) / np.sqrt(foo)),
     )
 
     # Proximal operation
@@ -112,7 +117,6 @@ def select_lambda(hrf, y, criteria="mad_update", factor=1, pcg=0.7):
     # Use last echo to estimate noise
     if hrf.shape[0] > nt:
         y = y[-nt:, :]
-        print(y.shape)
 
     _, cD1 = wavedec(y, "db3", level=1, axis=0)
     noise_estimate = median_absolute_deviation(cD1) / 0.6745  # 0.8095
@@ -154,6 +158,10 @@ def fista(
     factor=1,
     group=0.2,
     pfm_only=False,
+    out_dir=None,
+    block_model=False,
+    tr=2,
+    te=[1],
 ):
     """Solve inverse problem with FISTA.
 
@@ -201,47 +209,31 @@ def fista(
     nscans = hrf.shape[1]
 
     c_ist = 1 / (linalg.norm(hrf) ** 2)
-    hrf_trans = hrf.T
-    hrf_cov = np.dot(hrf_trans, hrf)
-    v = np.dot(hrf_trans, y)
+    # hrf_trans = hrf.T
+    # hrf_cov = np.dot(hrf_trans, hrf)
+    # v = np.dot(hrf_trans, y)
 
     y_fista_S = np.zeros((nscans, nvoxels), dtype=np.float32)
     y_fista_L = np.zeros(y.shape)
+    S_fitts = y_fista_L.copy()
     y_fista_A = y_fista_L.copy()
     S = y_fista_S.copy()
     if n_te == 1:
         L = np.zeros((nscans, nvoxels))
     else:
         L = np.zeros((n_te * nscans, nvoxels))
-    A = L.copy()
-    data_fidelity = y - y_fista_L
+    A = y.copy()
+    # data_fidelity = y - y_fista_L
 
-    keep_idx = 1
+    keep_idx = 0
     t_fista = 1
-
-    if not pfm_only:
-        # Estimation of the number of low-rank components to keep
-        Ut, St, Vt = linalg.svd(y, full_matrices=False, compute_uv=True, check_finite=True)
-
-        St_diff = abs(np.diff(St) / St[1:])
-        keep_diff = np.where(St_diff >= eigen_thr)[0]
-
-        diff_old = -1
-        for i in range(len(keep_diff)):
-            if (keep_diff[i] - diff_old) == 1:
-                keep_idx = keep_diff[i] + 1
-            else:
-                break
-            diff_old = keep_diff[i]
-
-        LGR.info(f"{keep_idx} low-rank components found")
 
     # Select lambda for each voxel based on criteria
     lambda_S, update_lambda, noise_estimate = select_lambda(
         hrf, y, factor=factor, criteria=lambda_crit
     )
 
-    LGR.info(f"Selected lambda is {lambda_S}")
+    # LGR.info(f"Selected lambda is {lambda_S}")
 
     if precision is None:
         precision = noise_estimate / 100000
@@ -250,6 +242,8 @@ def fista(
     for num_iter in range(max_iter):
 
         LGR.info(f"Iteration {num_iter + 1}/{max_iter}")
+
+        data_fidelity = A.copy() - S_fitts
 
         # Save results from previous iteration
         S_old = S.copy()
@@ -260,9 +254,42 @@ def fista(
         y_ista_A = y_fista_A.copy()
 
         # Forward-Backward step
-        S_residuals = v - np.dot(hrf_cov, y_ista_S)
-        z_ista_S = y_ista_S + c_ist * S_residuals
-        z_ista_L = y_ista_L + c_ist * data_fidelity
+        if not pfm_only:
+            z_ista_L = y_ista_L + c_ist * data_fidelity
+
+            # Estimate L
+            Ut, St, Vt = linalg.svd(
+                z_ista_L, full_matrices=False, compute_uv=True, check_finite=True
+            )
+
+            if num_iter == 0:
+                St_diff = abs(np.diff(St) / St[1:])
+                keep_diff = np.where(St_diff >= eigen_thr)[0]
+
+                diff_old = -1
+                for i in range(len(keep_diff)):
+                    if (keep_diff[i] - diff_old) == 1:
+                        keep_idx = keep_diff[i] + 1
+                    else:
+                        break
+                    diff_old = keep_diff[i]
+
+                LGR.info(f"{keep_idx} low-rank components found")
+
+            St[keep_idx + 1 :] = 0
+
+            if num_iter == 0:
+                L = np.dot(np.dot(Ut, np.diag(St) / c_ist), Vt)
+                data_fidelity = y - L
+            else:
+                L = np.dot(np.dot(Ut, np.diag(St)), Vt)
+                data_fidelity = A - L
+
+        if n_te > 1:
+            S_fidelity = data_fidelity[nscans : 2 * nscans, :]
+        else:
+            S_fidelity = data_fidelity
+        z_ista_S = y_ista_S + c_ist * S_fidelity
 
         # Estimate S
         if group > 0:
@@ -270,15 +297,21 @@ def fista(
         else:
             S = proximal_operator_lasso(z_ista_S, c_ist * lambda_S)
 
-        if not pfm_only:
-            # Estimate L
-            Ut, St, Vt = linalg.svd(
-                z_ista_L, full_matrices=False, compute_uv=True, check_finite=True
-            )
-            St[keep_idx + 1 :] = 0
-            L = np.dot(np.dot(Ut, np.diag(St)), Vt)
+        #  Perform debiasing to have both S and L on the same amplitude scale
+        if block_model:
+            if num_iter == 0:
+                hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=False)
+                hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
 
-        A = y_ista_A + np.dot(hrf, S - y_ista_S) + (L - y_ista_L)
+            S_spike = debiasing_block(hrf=hrf_norm, y=y, auc=S, progress_bar=False)
+            S_fitts = np.dot(hrf_norm, S_spike)
+        else:
+            S, S_fitts = debiasing_spike(hrf=hrf, y=y, auc=S, progress_bar=False)
+            S_spike = S
+
+        # breakpoint()
+
+        A = y_ista_A + np.dot(hrf, S_spike - y_ista_S) + (L - y_ista_L)
 
         t_fista_old = t_fista
         t_fista = 0.5 * (1 + np.sqrt(1 + 4 * (t_fista_old ** 2)))
@@ -287,14 +320,14 @@ def fista(
         y_fista_L = L + (L - L_old) * (t_fista_old - 1) / t_fista
         y_fista_A = A + (A - A_old) * (t_fista_old - 1) / t_fista
 
-        data_fidelity = y - y_fista_A
-
         # Residuals
-        nv = np.sqrt(np.sum((np.dot(hrf, S) + L - y) ** 2, axis=0) / nscans)
+        nv = np.sqrt(np.sum((S_fitts + L - y) ** 2, axis=0) / nscans)
 
         # Convergence
         if num_iter >= min_iter:
             if any(abs(nv - noise_estimate) < precision) and lambda_crit == "mad_update":
+                break
+            elif linalg.norm(A - A_old) < tol * linalg.norm(A_old):
                 break
             else:
                 diff = (abs(S_old - S) < tol).flatten()

@@ -113,4 +113,6 @@ ENV/
 # vim swap files
 *.swp
 3dDeconvolve.err
+
+splora/.DS_Store
 .DS_Store

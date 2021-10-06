@@ -9,8 +9,8 @@ import numpy as np
 
 from splora import utils
 from splora.cli.run import _get_parser
+from splora.deconvolution import fista
 from splora.deconvolution.debiasing import debiasing_block, debiasing_spike
-from splora.deconvolution.fista import fista
 from splora.deconvolution.hrf_matrix import HRFMatrix
 from splora.io import read_data, write_data
 
@@ -145,7 +145,7 @@ def splora(
     hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=block_model)
     hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
 
-    S, eigen_vecs, eigen_maps, noise_estimate, lambda_val = fista(
+    S, eigen_vecs, eigen_maps, noise_estimate, lambda_val = fista.fista(
         hrf=hrf_norm,
         y=data_masked,
         n_te=n_te,
@@ -154,6 +154,9 @@ def splora(
         eigen_thr=eigthr,
         group=group,
         pfm_only=pfm_only,
+        block_model=block_model,
+        tr=tr,
+        te=te,
     )
 
     # Debiasing
@@ -176,7 +179,7 @@ def splora(
         write_data(S, os.path.join(out_dir, output_name), mask_img, data_header, command_str)
 
         if not do_debias:
-            hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, has_integrator=False)
+            hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=False)
             hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
             S_deb = np.dot(np.tril(np.ones(nscans)), S_deb)
             S_fitts = np.dot(hrf_norm, S_deb)
@@ -187,7 +190,13 @@ def splora(
 
     if n_te == 1:
         output_name = f"{output_filename}_fitts.nii.gz"
-        write_data(S_fitts, os.path.join(out_dir, output_name), mask_img, data_header, command_str)
+        write_data(
+            S_fitts,
+            os.path.join(out_dir, output_name),
+            mask_img,
+            data_header,
+            command_str,
+        )
     elif n_te > 1:
         for te_idx in range(n_te):
             te_data = S_fitts[te_idx * nscans : (te_idx + 1) * nscans, :]
@@ -203,9 +212,14 @@ def splora(
     if pfm_only is False:
         # Saving eigen vectors and maps
         for i in range(eigen_vecs.shape[1]):
-            # Time-series
-            output_name = f"{output_filename}_eigenvec_{i+1}.1D"
-            np.savetxt(os.path.join(out_dir, output_name), np.squeeze(eigen_vecs[:, i]))
+            for te_idx in range(n_te):
+                # Time-series
+                output_name = f"{output_filename}_eigenvec_{i+1}_E0{te_idx + 1}.1D"
+                if te_idx == 0:
+                    eig_echo = eigen_vecs[:nscans, i]
+                else:
+                    eig_echo = eigen_vecs[te_idx * nscans : (te_idx + 1) * nscans, i]
+                np.savetxt(os.path.join(out_dir, output_name), np.squeeze(eig_echo))
             # Maps
             low_rank_map = np.expand_dims(eigen_maps[i, :], axis=0)
             output_name = f"{output_filename}_eigenmap_{i+1}.nii.gz"
@@ -217,15 +231,23 @@ def splora(
                 command_str,
             )
 
-    # Save noise estimate and lambda
-    output_name = f"{output_filename}_MAD.nii.gz"
-    write_data(
-        np.expand_dims(noise_estimate, axis=0),
-        os.path.join(out_dir, output_name),
-        mask_img,
-        data_header,
-        command_str,
-    )
+    # Save noise estimate
+    for te_idx in range(n_te):
+        output_name = f"{output_filename}_MAD_E0{te_idx + 1}.nii.gz"
+        if te_idx == 0:
+            y_echo = data_masked[:nscans, :]
+        else:
+            y_echo = data_masked[te_idx * nscans : (te_idx + 1) * nscans, :]
+        _, _, noise_estimate = fista.select_lambda(hrf=hrf_norm, y=y_echo)
+        write_data(
+            np.expand_dims(noise_estimate, axis=0),
+            os.path.join(out_dir, output_name),
+            mask_img,
+            data_header,
+            command_str,
+        )
+
+    # Save lambda
     output_name = f"{output_filename}_lambda.nii.gz"
     write_data(
         np.expand_dims(lambda_val, axis=0),
