@@ -29,7 +29,7 @@ jobs:
               source /etc/afni/afni.sh
               conda create -yq -n splora_py37 python=3.7
               source activate splora_py37
-              pip install -e ".[test,doc]"
+              pip install ".[test,doc]"
             fi
       - save_cache:
           key: conda-py37-v1-{{ checksum "setup.cfg" }}
@@ -50,6 +50,48 @@ jobs:
             source /etc/afni/afni.sh
             source activate splora_py37  # depends on makeenv_37
             make unittest
+            mkdir /tmp/src/coverage
+            mv /tmp/src/splora/.coverage /tmp/src/coverage/.coverage.py37
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - src/coverage/.coverage.py37
+
+  single_echo:
+    docker:
+      - image: nipype/nipype
+    working_directory: /tmp/src/splora
+    steps:
+      - checkout
+      - restore_cache:
+          key: conda-py37-v1-{{ checksum "setup.cfg" }}
+      - run:
+          name: Running unit tests
+          command: |
+            source /etc/afni/afni.sh
+            source activate splora_py37  # depends on makeenv_37
+            make single-echo
+            mkdir /tmp/src/coverage
+            mv /tmp/src/splora/.coverage /tmp/src/coverage/.coverage.py37
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - src/coverage/.coverage.py37
+
+  multi_echo:
+    docker:
+      - image: nipype/nipype
+    working_directory: /tmp/src/splora
+    steps:
+      - checkout
+      - restore_cache:
+          key: conda-py37-v1-{{ checksum "setup.cfg" }}
+      - run:
+          name: Running unit tests
+          command: |
+            source /etc/afni/afni.sh
+            source activate splora_py37  # depends on makeenv_37
+            make multi-echo
             mkdir /tmp/src/coverage
             mv /tmp/src/splora/.coverage /tmp/src/coverage/.coverage.py37
       - persist_to_workspace:
@@ -124,9 +166,12 @@ workflows:
       - unittest_37:
           requires:
             - makeenv_37
-      # - integrationtest_37:
-      #     requires:
-      #       - makeenv_37
+      - single_echo:
+          requires:
+            - makeenv_37
+      - multi_echo:
+          requires:
+            - makeenv_37
       - style_check:
           requires:
             - makeenv_37
@@ -136,5 +181,6 @@ workflows:
       - merge_coverage:
           requires:
             - unittest_37
-            # - integrationtest_37
+            - single_echo
+            - multi_echo
             - style_check

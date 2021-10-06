@@ -1,5 +1,7 @@
-import numpy as np
 import os
+
+import numpy as np
+
 from splora.deconvolution import hrf_matrix
 from splora.tests.utils import get_test_data_path
 
