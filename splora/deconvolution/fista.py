@@ -215,7 +215,7 @@ def fista(
 
     y_fista_S = np.zeros((nscans, nvoxels), dtype=np.float32)
     y_fista_L = np.zeros(y.shape)
-    fitt = y_fista_L.copy()
+    S_fitts = y_fista_L.copy()
     y_fista_A = y_fista_L.copy()
     S = y_fista_S.copy()
     if n_te == 1:
@@ -243,7 +243,7 @@ def fista(
 
         LGR.info(f"Iteration {num_iter + 1}/{max_iter}")
 
-        data_fidelity = A.copy() - np.dot(hrf, S)
+        data_fidelity = A.copy() - S_fitts
 
         # Save results from previous iteration
         S_old = S.copy()
@@ -274,7 +274,7 @@ def fista(
                         break
                     diff_old = keep_diff[i]
 
-                LGR.info(f"{keep_idx+1} low-rank components found")
+                LGR.info(f"{keep_idx} low-rank components found")
 
             St[keep_idx + 1 :] = 0
 
@@ -299,20 +299,19 @@ def fista(
 
         #  Perform debiasing to have both S and L on the same amplitude scale
         if block_model:
-            hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=False)
-            hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
-            S_deb = debiasing_block(hrf=hrf_norm, y=y, auc=S)
+            if num_iter == 0:
+                hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=False)
+                hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
+
+            S_spike = debiasing_block(hrf=hrf_norm, y=y, auc=S, progress_bar=False)
+            S_fitts = np.dot(hrf_norm, S_spike)
         else:
             S, S_fitts = debiasing_spike(hrf=hrf, y=y, auc=S, progress_bar=False)
-
-        foo = np.zeros((nvoxels, Ut[:, :keep_idx].shape[1]))
-        for voxidx in range(nvoxels):
-            for lridx in range(Ut[:, :keep_idx].shape[1]):
-                foo[voxidx, lridx] = np.corrcoef(S_fitts[:, voxidx], Ut[:, lridx])[0][1]
+            S_spike = S
 
         # breakpoint()
 
-        A = y_ista_A + np.dot(hrf, S - y_ista_S) + (L - y_ista_L)
+        A = y_ista_A + np.dot(hrf, S_spike - y_ista_S) + (L - y_ista_L)
 
         t_fista_old = t_fista
         t_fista = 0.5 * (1 + np.sqrt(1 + 4 * (t_fista_old ** 2)))
@@ -322,7 +321,7 @@ def fista(
         y_fista_A = A + (A - A_old) * (t_fista_old - 1) / t_fista
 
         # Residuals
-        nv = np.sqrt(np.sum((fitt + L - y) ** 2, axis=0) / nscans)
+        nv = np.sqrt(np.sum((S_fitts + L - y) ** 2, axis=0) / nscans)
 
         # Convergence
         if num_iter >= min_iter:
