@@ -179,7 +179,7 @@ def splora(
         write_data(S, os.path.join(out_dir, output_name), mask_img, data_header, command_str)
 
         if not do_debias:
-            hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, has_integrator=False)
+            hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=False)
             hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
             S_deb = np.dot(np.tril(np.ones(nscans)), S_deb)
             S_fitts = np.dot(hrf_norm, S_deb)
