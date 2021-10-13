@@ -1,7 +1,6 @@
 """FISTA solver for PFM."""
 import logging
 
-import matplotlib.pyplot as plt
 import numpy as np
 from pywt import wavedec
 from scipy import linalg
