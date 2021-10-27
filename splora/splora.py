@@ -32,6 +32,8 @@ def splora(
     lambda_crit="mad_update",
     factor=1,
     block_model=False,
+    jobs=4,
+    lambda_echo=-1,
     debug=False,
     quiet=False,
 ):
@@ -157,6 +159,8 @@ def splora(
         block_model=block_model,
         tr=tr,
         te=te,
+        jobs=jobs,
+        lambda_echo=lambda_echo,
     )
 
     # Debiasing

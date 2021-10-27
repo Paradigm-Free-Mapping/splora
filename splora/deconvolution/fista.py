@@ -81,7 +81,7 @@ def proximal_operator_mixed_norm(y, thr, rho_val=0.8, groups="space"):
     return x
 
 
-def select_lambda(hrf, y, criteria="mad_update", factor=1, pcg=0.7):
+def select_lambda(hrf, y, criteria="mad_update", factor=1, pcg=0.7, lambda_echo=-1):
     """Criteria to select regularization parameter lambda.
 
     Parameters
@@ -115,7 +115,10 @@ def select_lambda(hrf, y, criteria="mad_update", factor=1, pcg=0.7):
 
     # Use last echo to estimate noise
     if hrf.shape[0] > nt:
-        y = y[-nt:, :]
+        if lambda_echo == -1:
+            y = y[-nt:, :]
+        else:
+            y = y[(lambda_echo - 1) * nt : lambda_echo * nt, :]
 
     _, cD1 = wavedec(y, "db3", level=1, axis=0)
     noise_estimate = median_absolute_deviation(cD1) / 0.6745  # 0.8095
@@ -161,6 +164,8 @@ def fista(
     block_model=False,
     tr=2,
     te=[1],
+    jobs=4,
+    lambda_echo=-1,
 ):
     """Solve inverse problem with FISTA.
 
@@ -302,10 +307,10 @@ def fista(
                 hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=False)
                 hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
 
-            S_spike = debiasing_block(hrf=hrf_norm, y=y, auc=S, progress_bar=False)
+            S_spike = debiasing_block(hrf=hrf_norm, y=y, auc=S, progress_bar=False, jobs=jobs)
             S_fitts = np.dot(hrf_norm, S_spike)
         else:
-            S, S_fitts = debiasing_spike(hrf=hrf, y=y, auc=S, progress_bar=False)
+            S, S_fitts = debiasing_spike(hrf=hrf, y=y, auc=S, progress_bar=False, jobs=jobs)
             S_spike = S
 
         # breakpoint()

@@ -111,7 +111,7 @@ def do_debias_block(hrf, y, auc, dist=2):
     return beta_out
 
 
-def debiasing_block(hrf, y, auc, dist=2, progress_bar=True):
+def debiasing_block(hrf, y, auc, dist=2, progress_bar=True, jobs=4):
     """Voxelwise block model debiasing workflow.
 
     Parameters
@@ -140,12 +140,12 @@ def debiasing_block(hrf, y, auc, dist=2, progress_bar=True):
     LGR.info("Starting debiasing step...")
     # Performs debiasing
     if progress_bar:
-        debiased = Parallel(n_jobs=-1, backend="multiprocessing")(
+        debiased = Parallel(n_jobs=jobs, backend="multiprocessing")(
             delayed(do_debias_block)(hrf, y[:, voxidx], auc[:, voxidx])
             for voxidx in tqdm(range(nvoxels))
         )
     else:
-        debiased = Parallel(n_jobs=-1, backend="multiprocessing")(
+        debiased = Parallel(n_jobs=jobs, backend="multiprocessing")(
             delayed(do_debias_block)(hrf, y[:, voxidx], auc[:, voxidx])
             for voxidx in range(nvoxels)
         )
@@ -190,7 +190,7 @@ def do_debias_spike(hrf, y, auc):
     return beta_out, fitts_out
 
 
-def debiasing_spike(hrf, y, auc, progress_bar=True):
+def debiasing_spike(hrf, y, auc, progress_bar=True, jobs=4):
     """Perform voxelwise debiasing with spike model.
 
     Parameters
@@ -217,12 +217,12 @@ def debiasing_spike(hrf, y, auc, progress_bar=True):
 
     LGR.info("Performing debiasing step...")
     if progress_bar:
-        debiased = Parallel(n_jobs=-1, backend="multiprocessing")(
+        debiased = Parallel(n_jobs=jobs, backend="multiprocessing")(
             delayed(do_debias_spike)(hrf, y[:, index_voxels[voxidx]], auc[:, index_voxels[voxidx]])
             for voxidx in tqdm(range(len(index_voxels)))
         )
     else:
-        debiased = Parallel(n_jobs=-1, backend="multiprocessing")(
+        debiased = Parallel(n_jobs=jobs, backend="multiprocessing")(
             delayed(do_debias_spike)(hrf, y[:, index_voxels[voxidx]], auc[:, index_voxels[voxidx]])
             for voxidx in range(len(index_voxels))
         )

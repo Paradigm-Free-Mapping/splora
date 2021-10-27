@@ -129,6 +129,22 @@ def _get_parser():
         default=1,
     )
     optional.add_argument(
+        "-jobs",
+        "--jobs",
+        dest="jobs",
+        type=int,
+        help="Number of cores to take to parallelize debiasing step (default = 4).",
+        default=4,
+    )
+    optional.add_argument(
+        "-lambda_echo",
+        "--lambda_echo",
+        dest="lambda_echo",
+        type=int,
+        help="Number of the TE data to calculate lambda for (default = last TE).",
+        default=-1,
+    )
+    optional.add_argument(
         "-debug",
         "--debug",
         dest="debug",
