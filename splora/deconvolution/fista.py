@@ -213,9 +213,9 @@ def fista(
     nscans = hrf.shape[1]
 
     c_ist = 1 / (linalg.norm(hrf) ** 2)
-    # hrf_trans = hrf.T
-    # hrf_cov = np.dot(hrf_trans, hrf)
-    # v = np.dot(hrf_trans, y)
+    hrf_trans = hrf.T
+    hrf_cov = np.dot(hrf_trans, hrf)
+    v = np.dot(hrf_trans, y)
 
     y_fista_S = np.zeros((nscans, nvoxels), dtype=np.float32)
     y_fista_L = np.zeros(y.shape)
@@ -234,7 +234,7 @@ def fista(
 
     # Select lambda for each voxel based on criteria
     lambda_S, update_lambda, noise_estimate = select_lambda(
-        hrf, y, factor=factor, criteria=lambda_crit
+        hrf, y, factor=factor, criteria=lambda_crit, lambda_echo=lambda_echo
     )
 
     # LGR.info(f"Selected lambda is {lambda_S}")
@@ -247,7 +247,8 @@ def fista(
 
         LGR.info(f"Iteration {num_iter + 1}/{max_iter}")
 
-        data_fidelity = A.copy() - S_fitts
+        if not pfm_only:
+            data_fidelity = A.copy() - S_fitts
 
         # Save results from previous iteration
         S_old = S.copy()
@@ -267,18 +268,23 @@ def fista(
             )
 
             if num_iter == 0:
+                # Calculate absolute difference between eigenvalues.
                 St_diff = abs(np.diff(St) / St[1:])
+
+                # Find what eigenvalue differences are bigger than the threshold.
                 keep_diff = np.where(St_diff >= eigen_thr)[0]
 
-                diff_old = -1
-                for i in range(len(keep_diff)):
-                    if (keep_diff[i] - diff_old) == 1:
-                        keep_idx = keep_diff[i] + 1
-                    else:
-                        break
-                    diff_old = keep_diff[i]
+                # Use first difference above the threshold as the number of low-rank components.
+                keep_idx = keep_diff[0]
+                # diff_old = -1
+                # for i in range(len(keep_diff)):
+                #     if (keep_diff[i] - diff_old) == 1:
+                #         keep_idx = keep_diff[i] + 1
+                #     else:
+                #         break
+                #     diff_old = keep_diff[i]
 
-                LGR.info(f"{keep_idx} low-rank components found")
+                LGR.info(f"{keep_idx+1} low-rank components found")
 
             St[keep_idx + 1 :] = 0
 
@@ -289,10 +295,14 @@ def fista(
                 L = np.dot(np.dot(Ut, np.diag(St)), Vt)
                 data_fidelity = A - L
 
-        if n_te > 1:
-            S_fidelity = data_fidelity[nscans : 2 * nscans, :]
+        if pfm_only:
+            S_fidelity = v - np.dot(hrf_cov, y_ista_S)
         else:
-            S_fidelity = data_fidelity
+            if n_te > 1:
+                S_fidelity = data_fidelity[nscans : 2 * nscans, :]
+            else:
+                S_fidelity = data_fidelity
+
         z_ista_S = y_ista_S + c_ist * S_fidelity
 
         # Estimate S
@@ -302,16 +312,20 @@ def fista(
             S = proximal_operator_lasso(z_ista_S, c_ist * lambda_S)
 
         #  Perform debiasing to have both S and L on the same amplitude scale
-        if block_model:
-            if num_iter == 0:
-                hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=False)
-                hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
+        if not pfm_only:
+            if block_model:
+                if num_iter == 0:
+                    hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=False)
+                    hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
 
-            S_spike = debiasing_block(hrf=hrf_norm, y=y, auc=S, progress_bar=False, jobs=jobs)
-            S_fitts = np.dot(hrf_norm, S_spike)
+                S_spike = debiasing_block(hrf=hrf_norm, y=y, auc=S, progress_bar=False, jobs=jobs)
+                S_fitts = np.dot(hrf_norm, S_spike)
+            else:
+                S, S_fitts = debiasing_spike(hrf=hrf, y=y, auc=S, progress_bar=False, jobs=jobs)
+                S_spike = S
         else:
-            S, S_fitts = debiasing_spike(hrf=hrf, y=y, auc=S, progress_bar=False, jobs=jobs)
             S_spike = S
+            S_fitts = np.dot(hrf, S)
 
         # breakpoint()
 
@@ -329,18 +343,31 @@ def fista(
 
         # Convergence
         if num_iter >= min_iter:
-            if any(abs(nv - noise_estimate) < precision) and lambda_crit == "mad_update":
-                break
-            elif linalg.norm(A - A_old) < tol * linalg.norm(A_old):
-                break
-            else:
-                diff = (abs(S_old - S) < tol).flatten()
-                if (np.sum(diff) / len(diff)) > 0.5:
+            if pfm_only:
+                nonzero_idxs_rows, nonzero_idxs_cols = np.where(
+                    np.abs(S) > 10 * np.finfo(float).eps
+                )
+                diff = np.abs(
+                    S[nonzero_idxs_rows, nonzero_idxs_cols]
+                    - S_old[nonzero_idxs_rows, nonzero_idxs_cols]
+                )
+                convergence_criteria = np.abs(diff / S_old[nonzero_idxs_rows, nonzero_idxs_cols])
+
+                if np.all(convergence_criteria <= tol):
                     break
+            else:
+                if any(abs(nv - noise_estimate) < precision) and lambda_crit == "mad_update":
+                    break
+                elif not pfm_only and linalg.norm(A - A_old) < tol * linalg.norm(A_old):
+                    break
+                else:
+                    diff = (abs(S_old - S) < tol).flatten()
+                    if (np.sum(diff) / len(diff)) > 0.5:
+                        break
 
         # Update lambda
         if update_lambda:
-            lambda_S = lambda_S * noise_estimate / nv
+            lambda_S = np.nan_to_num(lambda_S * noise_estimate / nv)
 
     if not pfm_only:
         # Extract low-rank maps and time-series
@@ -348,12 +375,14 @@ def fista(
             np.nan_to_num(L), full_matrices=False, compute_uv=True, check_finite=True
         )
 
+        # Make sure the correct number of components are saved.
+        eig_vecs = Ut[:, : keep_idx + 1]
+        eig_maps = Vt[: keep_idx + 1, :]
+
         # Normalize low-rank maps and time-series
-        eig_vecs = Ut[:, :keep_idx]
         mean_eig_vecs = np.mean(eig_vecs, axis=0)
         std_eig_vecs = np.std(eig_vecs, axis=0)
         eig_vecs = (eig_vecs - mean_eig_vecs) / (std_eig_vecs)
-        eig_maps = Vt[:keep_idx, :]
         mean_eig_maps = np.expand_dims(np.mean(eig_maps, axis=1), axis=1)
         std_eig_maps = np.expand_dims(np.std(eig_maps, axis=1), axis=1)
         eig_maps = (eig_maps - mean_eig_maps) / std_eig_maps
@@ -361,4 +390,4 @@ def fista(
         eig_vecs = None
         eig_maps = None
 
-    return S, eig_vecs, eig_maps, noise_estimate, lambda_S
+    return S, eig_vecs, eig_maps, noise_estimate, lambda_S, np.nan_to_num(L)

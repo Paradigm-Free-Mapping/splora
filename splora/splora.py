@@ -74,6 +74,7 @@ def splora(
     quiet : :obj:`bool`, optional
         If True, suppresses logging/LGRing of messages. Default is False.
     """
+
     data_str = str(data_filename).strip("[]")
     te_str = str(te).strip("[]")
     arguments = f"-i {data_str} -m {mask_filename} -o {output_filename} -tr {tr} "
@@ -131,6 +132,11 @@ def splora(
         data_masked, data_header, mask_img = read_data(data_filename[0], mask_filename)
         nscans = data_masked.shape[0]
     elif n_te > 1:
+        # If the first element of data_filename has spaces, it is a list of paths
+        # Convert it into a list
+        if " " in data_filename[0]:
+            data_filename = data_filename[0].split(" ")
+
         for te_idx in range(n_te):
             data_temp, data_header, mask_img = read_data(data_filename[te_idx], mask_filename)
             if te_idx == 0:
@@ -147,7 +153,7 @@ def splora(
     hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=block_model)
     hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
 
-    S, eigen_vecs, eigen_maps, noise_estimate, lambda_val = fista.fista(
+    S, eigen_vecs, eigen_maps, noise_estimate, lambda_val, L = fista.fista(
         hrf=hrf_norm,
         y=data_masked,
         n_te=n_te,
@@ -189,7 +195,10 @@ def splora(
             S_fitts = np.dot(hrf_norm, S_deb)
 
     # Save activity-inducing signal
-    output_name = f"{output_filename}_beta.nii.gz"
+    if n_te == 1:
+        output_name = f"{output_filename}_beta.nii.gz"
+    elif n_te > 1:
+        output_name = f"{output_filename}_DR2.nii.gz"
     write_data(S_deb, os.path.join(out_dir, output_name), mask_img, data_header, command_str)
 
     if n_te == 1:
@@ -204,7 +213,7 @@ def splora(
     elif n_te > 1:
         for te_idx in range(n_te):
             te_data = S_fitts[te_idx * nscans : (te_idx + 1) * nscans, :]
-            output_name = f"{output_filename}_fitts_E0{te_idx + 1}.nii.gz"
+            output_name = f"{output_filename}_dr2HRF_E0{te_idx + 1}.nii.gz"
             write_data(
                 te_data,
                 os.path.join(out_dir, output_name),
@@ -234,6 +243,27 @@ def splora(
                 data_header,
                 command_str,
             )
+
+        if n_te == 1:
+            output_name = f"{output_filename}_global.nii.gz"
+            write_data(
+                L,
+                os.path.join(out_dir, output_name),
+                mask_img,
+                data_header,
+                command_str,
+            )
+        elif n_te > 1:
+            for te_idx in range(n_te):
+                te_data = L[te_idx * nscans : (te_idx + 1) * nscans, :]
+                output_name = f"{output_filename}_global_E0{te_idx + 1}.nii.gz"
+                write_data(
+                    te_data,
+                    os.path.join(out_dir, output_name),
+                    mask_img,
+                    data_header,
+                    command_str,
+                )
 
     # Save noise estimate
     for te_idx in range(n_te):
