@@ -165,7 +165,16 @@ def splora(
         # Run stability selection
         LGR.info("Running stability selection...")
         auc = stability_selection.stability_selection(
-            hrf_norm, data_masked, n_te, tr, username, temp_dir, nscans, block_model, jobs, saved_data=saved_data
+            hrf_norm,
+            data_masked,
+            n_te,
+            tr,
+            username,
+            temp_dir,
+            nscans,
+            block_model,
+            jobs,
+            saved_data=saved_data,
         )
         LGR.info("Stability selection done.")
 
@@ -186,7 +195,6 @@ def splora(
             pfm_only=pfm_only,
             block_model=block_model,
             tr=tr,
-            te=te,
             jobs=jobs,
             lambda_echo=lambda_echo,
         )
