@@ -345,7 +345,7 @@ def fista(
         y_fista_A = A + (A - A_old) * (t_fista_old - 1) / t_fista
 
         # Residuals
-	# nv = np.sqrt(np.sum((S_fitts + L - y) ** 2, axis=0) / nscans)
+        nv = np.sqrt(np.sum((S_fitts + L - y) ** 2, axis=0) / nscans)
 
         # Convergence
         if num_iter >= min_iter:
@@ -362,8 +362,8 @@ def fista(
                 if np.all(convergence_criteria <= tol):
                     break
             else:
-                #if any(abs(nv - noise_estimate) < precision) and lambda_crit == "mad_update":
-                    #break
+                # if any(abs(nv - noise_estimate) < precision) and lambda_crit == "mad_update":
+                # break
                 if not pfm_only and linalg.norm(A - A_old) < tol * linalg.norm(A_old):
                     break
                 else:
