@@ -9,7 +9,7 @@ import numpy as np
 
 from splora import utils
 from splora.cli.run import _get_parser
-from splora.deconvolution import fista
+from splora.deconvolution import fista, stability_selection
 from splora.deconvolution.debiasing import debiasing_block, debiasing_spike
 from splora.deconvolution.hrf_matrix import HRFMatrix
 from splora.io import read_data, write_data
@@ -34,6 +34,9 @@ def splora(
     block_model=False,
     jobs=4,
     lambda_echo=-1,
+    do_stability_selection=False,
+    username=None,
+    saved_data=False,
     debug=False,
     quiet=False,
 ):
@@ -153,21 +156,40 @@ def splora(
     hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=block_model)
     hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
 
-    S, eigen_vecs, eigen_maps, noise_estimate, lambda_val, L = fista.fista(
-        hrf=hrf_norm,
-        y=data_masked,
-        n_te=n_te,
-        lambda_crit=lambda_crit,
-        factor=factor,
-        eigen_thr=eigthr,
-        group=group,
-        pfm_only=pfm_only,
-        block_model=block_model,
-        tr=tr,
-        te=te,
-        jobs=jobs,
-        lambda_echo=lambda_echo,
-    )
+    if pfm_only and do_stability_selection and username is not None:
+        # Generate temp directory in output directory to store stability selection results
+        temp_dir = op.join(out_dir, "temp")
+        if not op.isdir(temp_dir):
+            os.mkdir(temp_dir)
+
+        # Run stability selection
+        LGR.info("Running stability selection...")
+        auc = stability_selection.stability_selection(
+            hrf_norm, data_masked, n_te, tr, username, temp_dir, nscans, block_model, jobs, saved_data=saved_data
+        )
+        LGR.info("Stability selection done.")
+
+        # Output AUC image
+        output_name = f"{output_filename}_AUC.nii.gz"
+        write_data(auc, os.path.join(out_dir, output_name), mask_img, data_header, command_str)
+        sys.exit("AUC saved. MvMEPFM with stability selection finished.")
+
+    else:
+        S, eigen_vecs, eigen_maps, noise_estimate, lambda_val, L = fista.fista(
+            hrf=hrf_norm,
+            y=data_masked,
+            n_te=n_te,
+            lambda_crit=lambda_crit,
+            factor=factor,
+            eigen_thr=eigthr,
+            group=group,
+            pfm_only=pfm_only,
+            block_model=block_model,
+            tr=tr,
+            te=te,
+            jobs=jobs,
+            lambda_echo=lambda_echo,
+        )
 
     # Debiasing
     if do_debias:

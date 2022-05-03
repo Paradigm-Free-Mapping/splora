@@ -145,6 +145,30 @@ def _get_parser():
         default=-1,
     )
     optional.add_argument(
+        "-stability",
+        "--stability_selection",
+        dest="do_stability_selection",
+        action="store_true",
+        help="Perform stability selection (default = False).",
+        default=False,
+    )
+    optional.add_argument(
+        "-username",
+        "--username",
+        dest="username",
+        type=str,
+        help="Username for running stability selection in cluster.",
+        default=None,
+    )
+    optional.add_argument(
+        "-saved",
+        "--saved",
+        dest="saved_data",
+        action="store_true",
+        help="Use data saved in temp folder to calculate AUC.",
+        default=False,
+    )
+    optional.add_argument(
         "-debug",
         "--debug",
         dest="debug",

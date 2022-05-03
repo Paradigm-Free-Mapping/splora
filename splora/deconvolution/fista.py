@@ -151,6 +151,7 @@ def fista(
     hrf,
     y,
     n_te,
+    lambd=None,
     max_iter=100,
     min_iter=10,
     lambda_crit="mad_update",
@@ -163,7 +164,6 @@ def fista(
     out_dir=None,
     block_model=False,
     tr=2,
-    te=[1],
     jobs=4,
     lambda_echo=-1,
 ):
@@ -231,15 +231,20 @@ def fista(
 
     keep_idx = 0
     t_fista = 1
+    update_lambda = False
 
-    # Select lambda for each voxel based on criteria
-    lambda_S, update_lambda, noise_estimate = select_lambda(
-        hrf, y, factor=factor, criteria=lambda_crit, lambda_echo=lambda_echo
-    )
+    # Select lambda for each voxel based on criteria if no lambda is given
+    if lambd is None:
+        lambda_S, update_lambda, noise_estimate = select_lambda(
+            hrf, y, factor=factor, criteria=lambda_crit, lambda_echo=lambda_echo
+        )
+    else:
+        lambda_S = lambd
+        noise_estimate = np.zeros(nvoxels)
 
     # LGR.info(f"Selected lambda is {lambda_S}")
 
-    if precision is None:
+    if precision is None and update_lambda:
         precision = noise_estimate / 100000
 
     # Perform FISTA
@@ -329,7 +334,8 @@ def fista(
 
         # breakpoint()
 
-        A = y_ista_A + np.dot(hrf, S_spike - y_ista_S) + (L - y_ista_L)
+        if not pfm_only:
+            A = y_ista_A + np.dot(hrf, S_spike - y_ista_S) + (L - y_ista_L)
 
         t_fista_old = t_fista
         t_fista = 0.5 * (1 + np.sqrt(1 + 4 * (t_fista_old ** 2)))
@@ -339,7 +345,7 @@ def fista(
         y_fista_A = A + (A - A_old) * (t_fista_old - 1) / t_fista
 
         # Residuals
-        nv = np.sqrt(np.sum((S_fitts + L - y) ** 2, axis=0) / nscans)
+	# nv = np.sqrt(np.sum((S_fitts + L - y) ** 2, axis=0) / nscans)
 
         # Convergence
         if num_iter >= min_iter:
@@ -356,9 +362,9 @@ def fista(
                 if np.all(convergence_criteria <= tol):
                     break
             else:
-                if any(abs(nv - noise_estimate) < precision) and lambda_crit == "mad_update":
-                    break
-                elif not pfm_only and linalg.norm(A - A_old) < tol * linalg.norm(A_old):
+                #if any(abs(nv - noise_estimate) < precision) and lambda_crit == "mad_update":
+                    #break
+                if not pfm_only and linalg.norm(A - A_old) < tol * linalg.norm(A_old):
                     break
                 else:
                     diff = (abs(S_old - S) < tol).flatten()
