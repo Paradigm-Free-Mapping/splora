@@ -166,6 +166,7 @@ def fista(
     tr=2,
     jobs=4,
     lambda_echo=-1,
+    te=[0],
 ):
     """Solve inverse problem with FISTA.
 
@@ -198,6 +199,8 @@ def fista(
         Weight for grouping effect over sparsity, by default 0.2
     pfm_only : boolean, optional
         Whether PFM is run with original formulation, i.e., no low-rank, by default False
+    te : list, optional
+        Echo times, by default [0]
 
     Returns
     -------

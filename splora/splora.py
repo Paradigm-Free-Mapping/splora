@@ -197,6 +197,7 @@ def splora(
             tr=tr,
             jobs=jobs,
             lambda_echo=lambda_echo,
+            te=te,
         )
 
     # Debiasing
