@@ -2,7 +2,7 @@
 
 [![Latest Version](https://img.shields.io/pypi/v/splora.svg)](https://pypi.python.org/pypi/splora/)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/splora.svg)](https://pypi.python.org/pypi/splora/)
-[![DOI](https://zenodo.org/badge/111111.svg)](https://zenodo.org/badge/latestdoi/111111)
+[![DOI](https://zenodo.org/badge/291096007.svg)](https://zenodo.org/badge/latestdoi/291096007)
 [![License](https://img.shields.io/badge/License-LGPL%202.1-blue.svg)](https://opensource.org/licenses/LGPL-2.1)
 [![CircleCI](https://circleci.com/gh/eurunuela/splora.svg?style=shield)](https://circleci.com/gh/eurunuela/splora)
 [![Documentation Status](https://readthedocs.org/projects/splora/badge/?version=latest)](http://splora.readthedocs.io/en/latest/?badge=latest)
