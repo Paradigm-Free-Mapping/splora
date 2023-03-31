@@ -9,9 +9,21 @@ LGR = logging.getLogger("GENERAL")
 
 
 def bget(cmd):
-    from subprocess import Popen, PIPE
-    from sys import stdout
+    """Run a command on the cluster and return the output.
+
+    Parameters
+    ----------
+    cmd : str
+        The command to run.
+
+    Returns
+    -------
+    list
+        The output of the command.
+    """
     from shlex import split
+    from subprocess import PIPE, Popen
+    from sys import stdout
 
     out = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
     (stdout, stderr) = out.communicate()
@@ -20,6 +32,35 @@ def bget(cmd):
 
 def send_job(jobname, lambda_values, data, hrf, nTE, group, block_model,
 tr, jobs, n_sur, temp, nscans):
+    """Send a job to the cluster to perform stability selection.
+        
+    Parameters
+    ----------
+    jobname : str
+        The name of the job.
+    lambda_values : str
+        The path to the lambda values.
+    data : str
+        The path to the data.
+    hrf : str
+        The path to the hrf.
+    nTE : int
+        The number of echo times.
+    group : float
+        The group sparsity.
+    block_model : bool
+        Whether to use a block model.
+    tr : float
+        The repetition time.
+    jobs : int
+        The number of jobs to run in parallel.
+    n_sur : int
+        The number of surrogates.
+    temp : str
+        The path to the temporary directory.
+    nscans : int
+        The number of scans.
+    """
     env_vars = (
         f"LAMBDAS={lambda_values},DATA={data},HRF={hrf},nTE={nTE},GROUP={group},"
         f"BLOCK={block_model},TR={tr},JOBS={jobs},NSURR={n_sur},TEMP={temp},NSCANS={nscans}"
@@ -32,9 +73,44 @@ tr, jobs, n_sur, temp, nscans):
 
 
 def stability_selection(
-    hrf, y, nTE, tr, username, temp, n_scans, block_model=False, jobs=4,
+    hrf, y, nTE, tr, temp, n_scans, block_model=False, jobs=4,
     n_lambdas=30, n_surrogates=30, group=0.2, saved_data=False
 ):
+    """Perform stability selection on the data.
+    
+    Parameters
+    ----------
+    hrf : array
+        The hemodynamic response function.
+    y : array
+        The data.
+    nTE : int
+        The number of echo times.
+    tr : float
+        The repetition time.
+    temp : str
+        The path to the temporary directory.
+    n_scans : int
+        The number of scans.
+    block_model : bool, optional
+        Whether to use a block model, by default False.
+    jobs : int, optional
+        The number of jobs to run in parallel, by default 4.
+    n_lambdas : int, optional
+        The number of lambda values to use, by default 30.
+    n_surrogates : int, optional
+        The number of surrogates to use, by default 30.
+    group : float, optional
+        The group sparsity, by default 0.2.
+    saved_data : bool, optional
+        Whether the data has already been saved, by default False.
+
+    Returns
+    -------
+    auc : array
+        The auc values.
+    """
+
 
     # Get n_scans and n_voxels from y
     n_voxels = y.shape[1]

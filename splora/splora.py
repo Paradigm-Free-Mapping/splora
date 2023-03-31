@@ -35,7 +35,6 @@ def splora(
     jobs=4,
     lambda_echo=-1,
     do_stability_selection=False,
-    username=None,
     saved_data=False,
     debug=False,
     quiet=False,
@@ -72,6 +71,15 @@ def splora(
         Only used when "factor" criteria is selected.
     block_model : bool, optional
         Whether to use the block model in favor of the spike model, by default False
+    jobs : int, optional
+        Number of jobs to run in parallel, by default 4
+    lambda_echo : int, optional
+        Index of echo to use for lambda selection, by default -1
+        If -1, the lambda is selected from the last of all echoes.
+    do_stability_selection : bool, optional
+        Whether to perform stability selection, by default False
+    saved_data : bool, optional
+        Whether to use saved data instead of running stability selection entirely, by default False
     debug : :obj:`bool`, optional
         Whether to run in debugging mode or not. Default is False.
     quiet : :obj:`bool`, optional
@@ -123,7 +131,7 @@ def splora(
         "(pp. 1726-1729). IEEE."
     )
 
-    LGR.info("Using output directory: {}".format(out_dir))
+    LGR.info(f"Using output directory: {out_dir}")
 
     n_te = len(te)
 
@@ -156,7 +164,7 @@ def splora(
     hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=block_model)
     hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
 
-    if pfm_only and do_stability_selection and username is not None:
+    if pfm_only and do_stability_selection:
         # Generate temp directory in output directory to store stability selection results
         temp_dir = op.join(out_dir, "temp")
         if not op.isdir(temp_dir):
@@ -169,7 +177,6 @@ def splora(
             data_masked,
             n_te,
             tr,
-            username,
             temp_dir,
             nscans,
             block_model,
