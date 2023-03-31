@@ -346,9 +346,6 @@ def fista(
         y_fista_L = L + (L - L_old) * (t_fista_old - 1) / t_fista
         y_fista_A = A + (A - A_old) * (t_fista_old - 1) / t_fista
 
-        # Residuals
-        nv = np.sqrt(np.sum((S_fitts + L - y) ** 2, axis=0) / nscans)
-
         # Convergence
         if num_iter >= min_iter:
             if pfm_only:
@@ -375,6 +372,7 @@ def fista(
 
         # Update lambda
         if update_lambda:
+            nv = np.sqrt(np.sum((S_fitts + L - y) ** 2, axis=0) / nscans)
             lambda_S = np.nan_to_num(lambda_S * noise_estimate / nv)
 
     if not pfm_only:
