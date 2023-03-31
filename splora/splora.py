@@ -90,7 +90,11 @@ def splora(
     te_str = str(te).strip("[]")
     arguments = f"-i {data_str} -m {mask_filename} -o {output_filename} -tr {tr} "
     arguments += f"-d {out_dir} -te {te_str} -eigthr {eigthr} -group {group} -crit {lambda_crit} "
-    arguments += f"-factor {factor} "
+    arguments += f"-factor {factor} -jobs {jobs} -lambda_echo {lambda_echo} "
+    if do_stability_selection:
+        arguments += "-stability "
+    if saved_data:
+        arguments += "-saved_data "
     if do_debias:
         arguments += "--debias "
     if pfm_only:
@@ -108,13 +112,9 @@ def splora(
     if not op.isdir(out_dir):
         os.mkdir(out_dir)
 
-    # Save command into sh file
-    command_file = open(os.path.join(out_dir, "call.sh"), "w")
-    command_file.write(command_str)
-    command_file.close()
+    with open(os.path.join(out_dir, "call.sh"), "w") as command_file:
+        command_file.write(command_str)
 
-    LGR = logging.getLogger("GENERAL")
-    # RefLGR = logging.getLogger("REFERENCES")
     # create logfile name
     basename = "splora_"
     extension = "tsv"
