@@ -1,76 +1,58 @@
 """Stability selection for the deconvolution problem."""
 import logging
-import subprocess
-import time
 from os.path import join as opj
 
 import numpy as np
+from dask import compute
+from dask import delayed as delayed_dask
+from pySPFM import utils
+
+from splora.deconvolution import fista
 
 LGR = logging.getLogger("GENERAL")
 
 
-def bget(cmd):
-    """Run a command on the cluster and return the output.
+def subsample(nscans, mode, nTE):
+    """Subsample the data.
 
     Parameters
     ----------
-    cmd : str
-        The command to run.
+    nscans : int
+        The number of scans.
+    mode : int
+        The subsampling mode.
+    nTE : int
+        The number of echo times.
 
     Returns
     -------
-    list
-        The output of the command.
+    subsample_idx : array
+        The indices of the subsampled data.
     """
-    from subprocess import PIPE, Popen
+    # Subsampling for Stability Selection
+    if mode == 1:  # different time points are selected across echoes
+        subsample_idx = np.sort(
+            np.random.choice(range(nscans), int(0.6 * nscans), 0)
+        )  # 60% of timepoints are kept
+        if nTE > 1:
+            for i in range(nTE - 1):
+                subsample_idx = np.concatenate(
+                    (
+                        subsample_idx,
+                        np.sort(
+                            np.random.choice(
+                                range((i + 1) * nscans, (i + 2) * nscans), int(0.6 * nscans), 0
+                            )
+                        ),
+                    )
+                )
 
-    out = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
-    (stdout, _) = out.communicate()
-    return stdout.decode().split()
+    elif mode > 1:  # same time points are selected across echoes
+        subsample_idx = np.sort(
+            np.random.choice(range(nscans), int(0.6 * nscans), 0)
+        )  # 60% of timepoints are kept
 
-
-def send_job(
-    jobname, lambda_values, data, hrf, nTE, group, block_model, tr, jobs, n_sur, temp, nscans
-):
-    """Send a job to the cluster to perform stability selection.
-
-    Parameters
-    ----------
-    jobname : str
-        The name of the job.
-    lambda_values : str
-        The path to the lambda values.
-    data : str
-        The path to the data.
-    hrf : str
-        The path to the hrf.
-    nTE : int
-        The number of echo times.
-    group : float
-        The group sparsity.
-    block_model : bool
-        Whether to use a block model.
-    tr : float
-        The repetition time.
-    jobs : int
-        The number of jobs to run in parallel.
-    n_sur : int
-        The number of surrogates.
-    temp : str
-        The path to the temporary directory.
-    nscans : int
-        The number of scans.
-    """
-    env_vars = (
-        f"LAMBDAS={lambda_values},DATA={data},HRF={hrf},nTE={nTE},GROUP={group},"
-        f"BLOCK={block_model},TR={tr},JOBS={jobs},NSURR={n_sur},TEMP={temp},NSCANS={nscans}"
-    )
-    subprocess.call("module purge", shell=True)
-    subprocess.call(
-        f"sbatch -J {jobname} -o /scratch/enekouru/{jobname} -e /scratch/enekouru/{jobname} "
-        f"--export={env_vars} /scratch/enekouru/splora/splora/deconvolution/compute_fista.slurm",
-        shell=True,
-    )
+    return subsample_idx
 
 
 def stability_selection(
@@ -86,6 +68,7 @@ def stability_selection(
     n_surrogates=30,
     group=0.2,
     saved_data=False,
+    jobqueue=None,
 ):
     """Perform stability selection on the data.
 
@@ -115,6 +98,8 @@ def stability_selection(
         The group sparsity, by default 0.2.
     saved_data : bool, optional
         Whether the data has already been saved, by default False.
+    jobqueue : str, optional
+        The jobqueue to use, by default None.
 
     Returns
     -------
@@ -152,35 +137,51 @@ def stability_selection(
     np.save(opj(temp, "hrf.npy"), hrf)
     np.save(opj(temp, "data.npy"), y)
 
+    # Initiate cluster
+    client, _ = utils.dask_scheduler(jobs, jobqueue)
+
     # Iterate through the number of surrogates and send jobs to the cluster
     # to perform stability selection
     if not saved_data:
-        for surrogate in range(n_surrogates):
-            jobname = f"stabsel_{surrogate}"
+        for _ in range(n_surrogates):
+            subsample_idx = subsample(n_scans, 1, nTE)
 
-            send_job(
-                jobname,
-                opj(temp, "lambda_range.npy"),
-                opj(temp, "data.npy"),
-                opj(temp, "hrf.npy"),
-                nTE,
-                group,
-                block_model,
-                tr,
-                jobs,
-                surrogate,
-                temp,
-                n_scans,
+            # Scatter data to workers if client is not None
+            if client is not None:
+                hrf_fut = client.scatter(hrf[subsample_idx, :])
+                y_fut = client.scatter(y[subsample_idx, :])
+            else:
+                hrf_fut = hrf[subsample_idx, :]
+                y_fut = y[subsample_idx, :]
+
+            futures = [
+                delayed_dask(
+                    fista.fista(
+                        hrf=hrf_fut,
+                        y=y_fut,
+                        n_te=nTE,
+                        lambd=lambda_values[lambda_, :],
+                        pfm_only=True,
+                        group=group,
+                        block_model=block_model,
+                        tr=tr,
+                    )
+                )
+                for lambda_ in range(n_lambdas)
+            ]
+
+            estimates = (
+                compute(futures)[0]
+                if client is not None
+                else compute(futures, scheduler="single-threaded")[0]
             )
-
-        while int(bget(f"ls {str(temp)}/beta_* | wc -l")[0]) < (n_surrogates * n_lambdas):
-            time.sleep(0.5)
 
     # Read the results from the cluster for each surrogate and lambda
     for lambda_idx in range(n_lambdas):
+        result = np.squeeze(estimates[lambda_idx])
+
+        print(result.shape)
         for surrogate in range(n_surrogates):
-            # Read the result from the cluster
-            result = np.load(opj(temp, f"beta_{surrogate}_{lambda_idx}.npy"))
             if surrogate == 0:
                 auc_sum = result.astype(int)
             else:
