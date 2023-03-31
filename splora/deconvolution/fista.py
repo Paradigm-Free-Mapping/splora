@@ -252,7 +252,6 @@ def fista(
 
     # Perform FISTA
     for num_iter in range(max_iter):
-
         LGR.info(f"Iteration {num_iter + 1}/{max_iter}")
 
         if not pfm_only:
