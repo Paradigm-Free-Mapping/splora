@@ -85,7 +85,6 @@ def splora(
     quiet : :obj:`bool`, optional
         If True, suppresses logging/LGRing of messages. Default is False.
     """
-
     data_str = str(data_filename).strip("[]")
     te_str = str(te).strip("[]")
     arguments = f"-i {data_str} -m {mask_filename} -o {output_filename} -tr {tr} "

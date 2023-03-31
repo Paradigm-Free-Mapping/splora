@@ -67,7 +67,8 @@ def send_job(
     )
     subprocess.call("module purge", shell=True)
     subprocess.call(
-        f"sbatch -J {jobname} -o /scratch/enekouru/{jobname} -e /scratch/enekouru/{jobname} --export={env_vars} /scratch/enekouru/splora/splora/deconvolution/compute_fista.slurm",
+        f"sbatch -J {jobname} -o /scratch/enekouru/{jobname} -e /scratch/enekouru/{jobname} "
+        f"--export={env_vars} /scratch/enekouru/splora/splora/deconvolution/compute_fista.slurm",
         shell=True,
     )
 
