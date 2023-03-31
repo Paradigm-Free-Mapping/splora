@@ -142,39 +142,40 @@ def stability_selection(
 
     # Iterate through the number of surrogates and send jobs to the cluster
     # to perform stability selection
-    if not saved_data:
-        for _ in range(n_surrogates):
-            subsample_idx = subsample(n_scans, 1, nTE)
+    for _ in range(n_surrogates):
+        subsample_idx = subsample(n_scans, 1, nTE)
 
-            # Scatter data to workers if client is not None
-            if client is not None:
-                hrf_fut = client.scatter(hrf[subsample_idx, :])
-                y_fut = client.scatter(y[subsample_idx, :])
-            else:
-                hrf_fut = hrf[subsample_idx, :]
-                y_fut = y[subsample_idx, :]
+        # Scatter data to workers if client is not None
+        if client is not None:
+            hrf_fut = client.scatter(hrf[subsample_idx, :])
+            y_fut = client.scatter(y[subsample_idx, :])
+        else:
+            hrf_fut = hrf[subsample_idx, :]
+            y_fut = y[subsample_idx, :]
 
-            futures = [
-                delayed_dask(
-                    fista.fista(
-                        hrf=hrf_fut,
-                        y=y_fut,
-                        n_te=nTE,
-                        lambd=lambda_values[lambda_, :],
-                        pfm_only=True,
-                        group=group,
-                        block_model=block_model,
-                        tr=tr,
-                    )
+        futures = [
+            delayed_dask(
+                fista.fista(
+                    hrf=hrf_fut,
+                    y=y_fut,
+                    n_te=nTE,
+                    lambd=lambda_values[lambda_, :],
+                    pfm_only=True,
+                    group=group,
+                    block_model=block_model,
+                    tr=tr,
                 )
-                for lambda_ in range(n_lambdas)
-            ]
-
-            estimates = (
-                compute(futures)[0]
-                if client is not None
-                else compute(futures, scheduler="single-threaded")[0]
             )
+            for lambda_ in range(n_lambdas)
+        ]
+
+        estimates = (
+            compute(futures)[0]
+            if client is not None
+            else compute(futures, scheduler="single-threaded")[0]
+        )
+
+        LGR.info(f"Estimates shape: {estimates.shape}")
 
     # Read the results from the cluster for each surrogate and lambda
     for lambda_idx in range(n_lambdas):
