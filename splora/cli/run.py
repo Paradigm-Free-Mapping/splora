@@ -160,7 +160,7 @@ def _get_parser():
         help="Use data saved in temp folder to calculate AUC.",
         default=False,
     )
-    optinal.add_argument(
+    optional.add_argument(
         "--jobqueue",
         dest="jobqueue",
         type=str,
