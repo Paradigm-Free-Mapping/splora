@@ -36,6 +36,7 @@ def splora(
     lambda_echo=-1,
     do_stability_selection=False,
     saved_data=False,
+    jobqueue=None,
     debug=False,
     quiet=False,
 ):
@@ -80,6 +81,8 @@ def splora(
         Whether to perform stability selection, by default False
     saved_data : bool, optional
         Whether to use saved data instead of running stability selection entirely, by default False
+    jobqueue : :obj:`str`, optional
+        Name of jobqueue to use for parallelization. Default is None.
     debug : :obj:`bool`, optional
         Whether to run in debugging mode or not. Default is False.
     quiet : :obj:`bool`, optional
@@ -181,6 +184,7 @@ def splora(
             block_model,
             jobs,
             saved_data=saved_data,
+            jobqueue=jobqueue,
         )
         LGR.info("Stability selection done.")
 
