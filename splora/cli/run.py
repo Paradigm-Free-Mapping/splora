@@ -185,7 +185,7 @@ def _get_parser():
         action="store_true",
         default=False,
     )
-    optional.add_argument("-v", "--version", action="version", version=("%(prog)s " + __version__))
+    optional.add_argument("-v", "--version", action="version", version=f"%(prog)s {__version__}")
 
     parser._action_groups.append(optional)
 

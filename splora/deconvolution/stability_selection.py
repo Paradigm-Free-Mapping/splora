@@ -67,7 +67,6 @@ def stability_selection(
     n_lambdas=30,
     n_surrogates=30,
     group=0.2,
-    saved_data=False,
     jobqueue=None,
 ):
     """Perform stability selection on the data.

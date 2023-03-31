@@ -181,9 +181,9 @@ def splora(
             tr,
             temp_dir,
             nscans,
-            block_model,
-            jobs,
-            saved_data=saved_data,
+            block_model=block_model,
+            jobs=jobs,
+            group=group,
             jobqueue=jobqueue,
         )
         LGR.info("Stability selection done.")
