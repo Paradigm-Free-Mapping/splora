@@ -37,6 +37,7 @@ print(f"n_sur: {n_sur}")
 print(f"temp: {temp}")
 print(f"nscans: {nscans}")
 
+
 def subsample(nscans, mode, nTE):
     # Subsampling for Stability Selection
     if mode == 1:  # different time points are selected across echoes

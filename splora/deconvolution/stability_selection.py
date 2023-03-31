@@ -1,3 +1,4 @@
+"""Stability selection for the deconvolution problem."""
 import logging
 import subprocess
 import time
@@ -21,19 +22,18 @@ def bget(cmd):
     list
         The output of the command.
     """
-    from shlex import split
     from subprocess import PIPE, Popen
-    from sys import stdout
 
     out = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
-    (stdout, stderr) = out.communicate()
+    (stdout, _) = out.communicate()
     return stdout.decode().split()
 
 
-def send_job(jobname, lambda_values, data, hrf, nTE, group, block_model,
-tr, jobs, n_sur, temp, nscans):
+def send_job(
+    jobname, lambda_values, data, hrf, nTE, group, block_model, tr, jobs, n_sur, temp, nscans
+):
     """Send a job to the cluster to perform stability selection.
-        
+
     Parameters
     ----------
     jobname : str
@@ -73,11 +73,21 @@ tr, jobs, n_sur, temp, nscans):
 
 
 def stability_selection(
-    hrf, y, nTE, tr, temp, n_scans, block_model=False, jobs=4,
-    n_lambdas=30, n_surrogates=30, group=0.2, saved_data=False
+    hrf,
+    y,
+    nTE,
+    tr,
+    temp,
+    n_scans,
+    block_model=False,
+    jobs=4,
+    n_lambdas=30,
+    n_surrogates=30,
+    group=0.2,
+    saved_data=False,
 ):
     """Perform stability selection on the data.
-    
+
     Parameters
     ----------
     hrf : array
@@ -110,8 +120,6 @@ def stability_selection(
     auc : array
         The auc values.
     """
-
-
     # Get n_scans and n_voxels from y
     n_voxels = y.shape[1]
 
@@ -161,10 +169,10 @@ def stability_selection(
                 jobs,
                 surrogate,
                 temp,
-            n_scans,
+                n_scans,
             )
 
-        while int(bget(f"ls {str(temp)}/beta_* | wc -l")[0]) < (n_surrogates*n_lambdas):
+        while int(bget(f"ls {str(temp)}/beta_* | wc -l")[0]) < (n_surrogates * n_lambdas):
             time.sleep(0.5)
 
     # Read the results from the cluster for each surrogate and lambda

@@ -341,7 +341,7 @@ def fista(
             A = y_ista_A + np.dot(hrf, S_spike - y_ista_S) + (L - y_ista_L)
 
         t_fista_old = t_fista
-        t_fista = 0.5 * (1 + np.sqrt(1 + 4 * (t_fista_old ** 2)))
+        t_fista = 0.5 * (1 + np.sqrt(1 + 4 * (t_fista_old**2)))
 
         y_fista_S = S + (S - S_old) * (t_fista_old - 1) / t_fista
         y_fista_L = L + (L - L_old) * (t_fista_old - 1) / t_fista
