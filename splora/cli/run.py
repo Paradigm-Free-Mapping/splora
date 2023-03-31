@@ -153,14 +153,6 @@ def _get_parser():
         default=False,
     )
     optional.add_argument(
-        "-username",
-        "--username",
-        dest="username",
-        type=str,
-        help="Username for running stability selection in cluster.",
-        default=None,
-    )
-    optional.add_argument(
         "-saved",
         "--saved",
         dest="saved_data",
