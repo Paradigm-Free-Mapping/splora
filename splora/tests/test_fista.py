@@ -63,7 +63,7 @@ def test_select_lambda():
 
 
 def test_fista():
-    beta, _, _, noise_est, lambda_val = fista.fista(
+    beta, _, _, noise_est, lambda_val, _ = fista.fista(
         hrf=hrf,
         y=np.expand_dims(y, axis=1),
         n_te=1,
