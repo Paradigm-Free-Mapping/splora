@@ -153,18 +153,16 @@ def stability_selection(
             y_fut = y[subsample_idx, :]
 
         futures = [
-            delayed_dask(
-                fista.fista(
-                    hrf=hrf_fut,
-                    y=y_fut,
-                    n_te=nTE,
-                    dims=(n_scans, n_voxels),
-                    lambd=lambda_values[lambda_, :],
-                    pfm_only=True,
-                    group=group,
-                    block_model=block_model,
-                    tr=tr,
-                )
+            delayed_dask(fista.fista)(
+                hrf=hrf_fut,
+                y=y_fut,
+                n_te=nTE,
+                dims=(n_scans, n_voxels),
+                lambd=lambda_values[lambda_, :],
+                pfm_only=True,
+                group=group,
+                block_model=block_model,
+                tr=tr,
             )
             for lambda_ in range(n_lambdas)
         ]
