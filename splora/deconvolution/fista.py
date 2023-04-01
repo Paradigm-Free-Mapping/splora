@@ -214,6 +214,12 @@ def fista(
         Time-series of the estimated low-rank components.
     eig_maps : (S x ) aray_like
         Spatial maps of the estimated low-rank components.
+    noise_estimate : (S x ) aray_like
+        MAD estimate of the noise.
+    lambda_selection : (S x ) aray_like
+        Value of the regularization parameter lambda for each voxel.
+    L : (T x S) aray_like
+        Estimated noise.
     """
     nvoxels = dims[0]
     nscans = dims[1]

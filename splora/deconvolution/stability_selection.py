@@ -144,13 +144,16 @@ def stability_selection(
     for _ in range(n_surrogates):
         subsample_idx = subsample(n_scans, 1, nTE)
 
+        hrf_sur = hrf[subsample_idx, :]
+        y_sur = y[subsample_idx, :]
+
         # Scatter data to workers if client is not None
         if client is not None:
-            hrf_fut = client.scatter(hrf[subsample_idx, :])
-            y_fut = client.scatter(y[subsample_idx, :])
+            hrf_fut = client.scatter(hrf_sur)
+            y_fut = client.scatter(y_sur)
         else:
-            hrf_fut = hrf[subsample_idx, :]
-            y_fut = y[subsample_idx, :]
+            hrf_fut = hrf_sur
+            y_fut = y_sur
 
         futures = [
             delayed_dask(fista.fista)(
