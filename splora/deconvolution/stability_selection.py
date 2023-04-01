@@ -158,6 +158,7 @@ def stability_selection(
                     hrf=hrf_fut,
                     y=y_fut,
                     n_te=nTE,
+                    dims=(n_scans, n_voxels),
                     lambd=lambda_values[lambda_, :],
                     pfm_only=True,
                     group=group,

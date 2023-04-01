@@ -151,6 +151,7 @@ def fista(
     hrf,
     y,
     n_te,
+    dims,
     lambd=None,
     max_iter=100,
     min_iter=10,
@@ -179,6 +180,8 @@ def fista(
         Matrix with fMRI data provided to splora.
     n_te : int
         Number of echo-times provided.
+    dims : tuple
+        Dimensions of the fMRI data.
     max_iter : int, optional
         Maximum number of iterations for FISTA, by default 100
     min_iter : int, optional
@@ -212,8 +215,8 @@ def fista(
     eig_maps : (S x ) aray_like
         Spatial maps of the estimated low-rank components.
     """
-    nvoxels = y.shape[1]
-    nscans = hrf.shape[1]
+    nvoxels = dims[0]
+    nscans = dims[1]
 
     c_ist = 1 / (linalg.norm(hrf) ** 2)
     hrf_trans = hrf.T
