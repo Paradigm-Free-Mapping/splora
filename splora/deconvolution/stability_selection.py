@@ -214,7 +214,6 @@ def stability_selection(
             lambda_values=lambda_values,
             group=group,
             block_model=block_model,
-            client=client,
         )
         for _ in range(n_surrogates)
     ]

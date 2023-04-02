@@ -221,8 +221,8 @@ def fista(
     L : (T x S) aray_like
         Estimated noise.
     """
-    nvoxels = dims[0]
-    nscans = dims[1]
+    nvoxels = dims[1]
+    nscans = dims[0]
 
     c_ist = 1 / (linalg.norm(hrf) ** 2)
     hrf_trans = hrf.T
