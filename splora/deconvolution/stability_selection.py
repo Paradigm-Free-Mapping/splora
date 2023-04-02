@@ -55,6 +55,60 @@ def subsample(nscans, mode, nTE):
     return subsample_idx
 
 
+def stability_of_surrogate(hrf, y, nTE, tr, n_scans, n_voxels, lambda_values, group, block_model):
+    """Calculate the stability of a surrogate.
+
+    Parameters
+    ----------
+    hrf : array
+        The hemodynamic response function.
+    y : array
+        The data.
+    nTE : int
+        The number of echo times.
+    tr : float
+        The repetition time.
+    n_scans : int
+        The number of scans.
+    n_voxels : int
+        The number of voxels.
+    lambda_values : array
+        The lambda values.
+    group : float
+        The group sparsity.
+    block_model : bool
+        Whether to use the block model.
+
+    Returns
+    -------
+    estimates : array
+        The estimates for all the lambdas.
+    """
+    subsample_idx = subsample(n_scans, 1, nTE)
+
+    hrf_fut = hrf[subsample_idx, :]
+    y_fut = y[subsample_idx, :]
+
+    n_lambdas = lambda_values.shape[0]
+
+    estimates = np.zeros((n_scans, n_voxels, n_lambdas))
+
+    for lambda_ in range(n_lambdas):
+        estimates[:, :, lambda_] = fista.fista(
+            hrf=hrf_fut,
+            y=y_fut,
+            n_te=nTE,
+            dims=(n_scans, n_voxels),
+            lambd=lambda_values[lambda_, :],
+            pfm_only=True,
+            group=group,
+            block_model=block_model,
+            tr=tr,
+        )
+
+    return estimates
+
+
 def stability_selection(
     hrf,
     y,
@@ -139,44 +193,41 @@ def stability_selection(
     # Initiate cluster
     client, _ = utils.dask_scheduler(jobs, jobqueue)
 
+    # Scatter data to workers if client is not None
+    if client is not None:
+        hrf_fut = client.scatter(hrf)
+        y_fut = client.scatter(y)
+    else:
+        hrf_fut = hrf
+        y_fut = y
+
     # Iterate through the number of surrogates and send jobs to the cluster
     # to perform stability selection
-    for _ in range(n_surrogates):
-        subsample_idx = subsample(n_scans, 1, nTE)
-
-        hrf_sur = hrf[subsample_idx, :]
-        y_sur = y[subsample_idx, :]
-
-        # Scatter data to workers if client is not None
-        if client is not None:
-            hrf_fut = client.scatter(hrf_sur)
-            y_fut = client.scatter(y_sur)
-        else:
-            hrf_fut = hrf_sur
-            y_fut = y_sur
-
-        futures = [
-            delayed_dask(fista.fista)(
-                hrf=hrf_fut,
-                y=y_fut,
-                n_te=nTE,
-                dims=(n_scans, n_voxels),
-                lambd=lambda_values[lambda_, :],
-                pfm_only=True,
-                group=group,
-                block_model=block_model,
-                tr=tr,
-            )
-            for lambda_ in range(n_lambdas)
-        ]
-
-        estimates = (
-            compute(futures)[0]
-            if client is not None
-            else compute(futures, scheduler="single-threaded")[0]
+    futures = [
+        delayed_dask(stability_of_surrogate)(
+            hrf=hrf_fut,
+            y=y_fut,
+            nTE=nTE,
+            tr=tr,
+            n_scans=n_scans,
+            n_voxels=n_voxels,
+            lambda_values=lambda_values,
+            group=group,
+            block_model=block_model,
+            client=client,
         )
+        for _ in range(n_surrogates)
+    ]
 
-        LGR.info(f"Estimates shape: {estimates.shape}")
+    estimates = (
+        compute(futures)[0]
+        if client is not None
+        else compute(futures, scheduler="single-threaded")[0]
+    )
+
+    LGR.info(f"Estimates shape: {estimates.shape}")
+
+    LGR.info("Finished calculating stability selection")
 
     # Read the results from the cluster for each surrogate and lambda
     for lambda_idx in range(n_lambdas):
