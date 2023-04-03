@@ -171,17 +171,13 @@ def stability_selection(
         voxel_data = y[:, voxel]
 
         # Calculate the maximum lambda possible
-        max_lambda = abs(np.dot(hrf.T, voxel_data)).max()
+        max_lambda = np.max(abs(np.dot(hrf.T, voxel_data)))
 
         LGR.debug(f"Maximum lambda for voxel {voxel} is {max_lambda}")
 
         # Calculate the lambda values in a log scale from 0.05 to 0.95 percent
-        # of the maximum lambda if the maximum lambda is not zero.
-        # Otherwise, make it all np.inf
-        if max_lambda > 0:
-            lambda_values[:, voxel] = np.geomspace(0.05 * max_lambda, 0.95 * max_lambda, n_lambdas)
-        else:
-            lambda_values[:, voxel] = np.inf * np.ones(n_lambdas)
+        # of the maximum lambda
+        lambda_values[:, voxel] = np.logspace(0.05 * max_lambda, 0.95 * max_lambda, n_lambdas)
 
     # Save the lambda values to a npy file
     np.save(opj(temp, "lambda_range.npy"), lambda_values)
