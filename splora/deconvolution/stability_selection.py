@@ -104,7 +104,7 @@ def stability_of_surrogate(hrf, y, nTE, tr, n_scans, n_voxels, lambda_values, gr
             group=group,
             block_model=block_model,
             tr=tr,
-        )
+        )[0]
 
     return estimates
 
@@ -194,19 +194,16 @@ def stability_selection(
     client, _ = utils.dask_scheduler(jobs, jobqueue)
 
     # Scatter data to workers if client is not None
-    if client is not None:
-        hrf_fut = client.scatter(hrf)
-        y_fut = client.scatter(y)
-    else:
-        hrf_fut = hrf
-        y_fut = y
+    # if client is not None:
+    #     hrf = client.scatter(hrf)
+    #     y = client.scatter(y)
 
     # Iterate through the number of surrogates and send jobs to the cluster
     # to perform stability selection
     futures = [
         delayed_dask(stability_of_surrogate)(
-            hrf=hrf_fut,
-            y=y_fut,
+            hrf=hrf,
+            y=y,
             nTE=nTE,
             tr=tr,
             n_scans=n_scans,
@@ -214,7 +211,6 @@ def stability_selection(
             lambda_values=lambda_values,
             group=group,
             block_model=block_model,
-            client=client,
         )
         for _ in range(n_surrogates)
     ]
