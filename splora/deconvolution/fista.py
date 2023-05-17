@@ -4,7 +4,7 @@ import logging
 import numpy as np
 from pywt import wavedec
 from scipy import linalg
-from scipy.stats import median_absolute_deviation
+from scipy.stats import median_abs_deviation
 
 from splora.deconvolution.debiasing import debiasing_block, debiasing_spike
 from splora.deconvolution.hrf_matrix import HRFMatrix
@@ -121,7 +121,7 @@ def select_lambda(hrf, y, criteria="mad_update", factor=1, pcg=0.7, lambda_echo=
             y = y[(lambda_echo - 1) * nt : lambda_echo * nt, :]
 
     _, cD1 = wavedec(y, "db3", level=1, axis=0)
-    noise_estimate = median_absolute_deviation(cD1) / 0.6745  # 0.8095
+    noise_estimate = median_abs_deviation(cD1) / 0.6745  # 0.8095
 
     if criteria == "mad":
         lambda_selection = noise_estimate
