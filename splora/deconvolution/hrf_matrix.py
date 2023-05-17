@@ -170,7 +170,7 @@ class HRFMatrix:
 
         self.L_hrf = len(hrf_SPM)  # Length
         max_hrf = max(abs(hrf_SPM))  # Max value
-        filler = np.zeros(self.nscans - hrf_SPM.shape[0], dtype=np.int)
+        filler = np.zeros(self.nscans - hrf_SPM.shape[0], dtype=int)
         hrf_SPM = np.append(hrf_SPM, filler)  # Fill up array with zeros until nscans
 
         temp = hrf_SPM
