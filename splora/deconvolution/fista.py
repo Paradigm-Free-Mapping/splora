@@ -347,7 +347,7 @@ def fista(
         y_fista_A = A + (A - A_old) * (t_fista_old - 1) / t_fista
 
         # Residuals
-        nv = np.sqrt(np.sum((S_fitts + L - y) ** 2, axis=0) / nscans)
+        # nv = np.sqrt(np.sum((S_fitts + L - y) ** 2, axis=0) / nscans)
 
         # Convergence
         if num_iter >= min_iter:
