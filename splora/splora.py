@@ -9,7 +9,7 @@ import numpy as np
 
 from splora import utils
 from splora.cli.run import _get_parser
-from splora.deconvolution import fista
+from splora.deconvolution import fista, stability_selection
 from splora.deconvolution.debiasing import debiasing_block, debiasing_spike
 from splora.deconvolution.hrf_matrix import HRFMatrix
 from splora.io import read_data, write_data
@@ -34,6 +34,8 @@ def splora(
     block_model=False,
     jobs=4,
     lambda_echo=-1,
+    do_stability_selection=False,
+    saved_data=False,
     debug=False,
     quiet=False,
 ):
@@ -69,17 +71,29 @@ def splora(
         Only used when "factor" criteria is selected.
     block_model : bool, optional
         Whether to use the block model in favor of the spike model, by default False
+    jobs : int, optional
+        Number of jobs to run in parallel, by default 4
+    lambda_echo : int, optional
+        Index of echo to use for lambda selection, by default -1
+        If -1, the lambda is selected from the last of all echoes.
+    do_stability_selection : bool, optional
+        Whether to perform stability selection, by default False
+    saved_data : bool, optional
+        Whether to use saved data instead of running stability selection entirely, by default False
     debug : :obj:`bool`, optional
         Whether to run in debugging mode or not. Default is False.
     quiet : :obj:`bool`, optional
         If True, suppresses logging/LGRing of messages. Default is False.
     """
-
     data_str = str(data_filename).strip("[]")
     te_str = str(te).strip("[]")
     arguments = f"-i {data_str} -m {mask_filename} -o {output_filename} -tr {tr} "
     arguments += f"-d {out_dir} -te {te_str} -eigthr {eigthr} -group {group} -crit {lambda_crit} "
-    arguments += f"-factor {factor} "
+    arguments += f"-factor {factor} -jobs {jobs} -lambda_echo {lambda_echo} "
+    if do_stability_selection:
+        arguments += "-stability "
+    if saved_data:
+        arguments += "-saved_data "
     if do_debias:
         arguments += "--debias "
     if pfm_only:
@@ -97,13 +111,9 @@ def splora(
     if not op.isdir(out_dir):
         os.mkdir(out_dir)
 
-    # Save command into sh file
-    command_file = open(os.path.join(out_dir, "call.sh"), "w")
-    command_file.write(command_str)
-    command_file.close()
+    with open(os.path.join(out_dir, "call.sh"), "w") as command_file:
+        command_file.write(command_str)
 
-    LGR = logging.getLogger("GENERAL")
-    # RefLGR = logging.getLogger("REFERENCES")
     # create logfile name
     basename = "splora_"
     extension = "tsv"
@@ -120,7 +130,7 @@ def splora(
         "(pp. 1726-1729). IEEE."
     )
 
-    LGR.info("Using output directory: {}".format(out_dir))
+    LGR.info(f"Using output directory: {out_dir}")
 
     n_te = len(te)
 
@@ -153,21 +163,48 @@ def splora(
     hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=block_model)
     hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
 
-    S, eigen_vecs, eigen_maps, noise_estimate, lambda_val, L = fista.fista(
-        hrf=hrf_norm,
-        y=data_masked,
-        n_te=n_te,
-        lambda_crit=lambda_crit,
-        factor=factor,
-        eigen_thr=eigthr,
-        group=group,
-        pfm_only=pfm_only,
-        block_model=block_model,
-        tr=tr,
-        te=te,
-        jobs=jobs,
-        lambda_echo=lambda_echo,
-    )
+    if pfm_only and do_stability_selection:
+        # Generate temp directory in output directory to store stability selection results
+        temp_dir = op.join(out_dir, "temp")
+        if not op.isdir(temp_dir):
+            os.mkdir(temp_dir)
+
+        # Run stability selection
+        LGR.info("Running stability selection...")
+        auc = stability_selection.stability_selection(
+            hrf_norm,
+            data_masked,
+            n_te,
+            tr,
+            temp_dir,
+            nscans,
+            block_model,
+            jobs,
+            saved_data=saved_data,
+        )
+        LGR.info("Stability selection done.")
+
+        # Output AUC image
+        output_name = f"{output_filename}_AUC.nii.gz"
+        write_data(auc, os.path.join(out_dir, output_name), mask_img, data_header, command_str)
+        sys.exit("AUC saved. MvMEPFM with stability selection finished.")
+
+    else:
+        S, eigen_vecs, eigen_maps, noise_estimate, lambda_val, L = fista.fista(
+            hrf=hrf_norm,
+            y=data_masked,
+            n_te=n_te,
+            lambda_crit=lambda_crit,
+            factor=factor,
+            eigen_thr=eigthr,
+            group=group,
+            pfm_only=pfm_only,
+            block_model=block_model,
+            tr=tr,
+            jobs=jobs,
+            lambda_echo=lambda_echo,
+            te=te,
+        )
 
     # Debiasing
     if do_debias:

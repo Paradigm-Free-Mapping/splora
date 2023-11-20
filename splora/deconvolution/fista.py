@@ -4,7 +4,7 @@ import logging
 import numpy as np
 from pywt import wavedec
 from scipy import linalg
-from scipy.stats import median_absolute_deviation
+from scipy.stats import median_abs_deviation
 
 from splora.deconvolution.debiasing import debiasing_block, debiasing_spike
 from splora.deconvolution.hrf_matrix import HRFMatrix
@@ -121,7 +121,7 @@ def select_lambda(hrf, y, criteria="mad_update", factor=1, pcg=0.7, lambda_echo=
             y = y[(lambda_echo - 1) * nt : lambda_echo * nt, :]
 
     _, cD1 = wavedec(y, "db3", level=1, axis=0)
-    noise_estimate = median_absolute_deviation(cD1) / 0.6745  # 0.8095
+    noise_estimate = median_abs_deviation(cD1) / 0.6745  # 0.8095
 
     if criteria == "mad":
         lambda_selection = noise_estimate
@@ -151,6 +151,7 @@ def fista(
     hrf,
     y,
     n_te,
+    lambd=None,
     max_iter=100,
     min_iter=10,
     lambda_crit="mad_update",
@@ -163,9 +164,9 @@ def fista(
     out_dir=None,
     block_model=False,
     tr=2,
-    te=[1],
     jobs=4,
     lambda_echo=-1,
+    te=[0],
 ):
     """Solve inverse problem with FISTA.
 
@@ -198,6 +199,8 @@ def fista(
         Weight for grouping effect over sparsity, by default 0.2
     pfm_only : boolean, optional
         Whether PFM is run with original formulation, i.e., no low-rank, by default False
+    te : list, optional
+        Echo times, by default [0]
 
     Returns
     -------
@@ -231,20 +234,24 @@ def fista(
 
     keep_idx = 0
     t_fista = 1
+    update_lambda = False
 
-    # Select lambda for each voxel based on criteria
-    lambda_S, update_lambda, noise_estimate = select_lambda(
-        hrf, y, factor=factor, criteria=lambda_crit, lambda_echo=lambda_echo
-    )
+    # Select lambda for each voxel based on criteria if no lambda is given
+    if lambd is None:
+        lambda_S, update_lambda, noise_estimate = select_lambda(
+            hrf, y, factor=factor, criteria=lambda_crit, lambda_echo=lambda_echo
+        )
+    else:
+        lambda_S = lambd
+        noise_estimate = np.zeros(nvoxels)
 
     # LGR.info(f"Selected lambda is {lambda_S}")
 
-    if precision is None:
+    if precision is None and update_lambda:
         precision = noise_estimate / 100000
 
     # Perform FISTA
     for num_iter in range(max_iter):
-
         LGR.info(f"Iteration {num_iter + 1}/{max_iter}")
 
         if not pfm_only:
@@ -329,17 +336,18 @@ def fista(
 
         # breakpoint()
 
-        A = y_ista_A + np.dot(hrf, S_spike - y_ista_S) + (L - y_ista_L)
+        if not pfm_only:
+            A = y_ista_A + np.dot(hrf, S_spike - y_ista_S) + (L - y_ista_L)
 
         t_fista_old = t_fista
-        t_fista = 0.5 * (1 + np.sqrt(1 + 4 * (t_fista_old ** 2)))
+        t_fista = 0.5 * (1 + np.sqrt(1 + 4 * (t_fista_old**2)))
 
         y_fista_S = S + (S - S_old) * (t_fista_old - 1) / t_fista
         y_fista_L = L + (L - L_old) * (t_fista_old - 1) / t_fista
         y_fista_A = A + (A - A_old) * (t_fista_old - 1) / t_fista
 
         # Residuals
-        nv = np.sqrt(np.sum((S_fitts + L - y) ** 2, axis=0) / nscans)
+        # nv = np.sqrt(np.sum((S_fitts + L - y) ** 2, axis=0) / nscans)
 
         # Convergence
         if num_iter >= min_iter:
@@ -356,9 +364,9 @@ def fista(
                 if np.all(convergence_criteria <= tol):
                     break
             else:
-                if any(abs(nv - noise_estimate) < precision) and lambda_crit == "mad_update":
-                    break
-                elif not pfm_only and linalg.norm(A - A_old) < tol * linalg.norm(A_old):
+                # if any(abs(nv - noise_estimate) < precision) and lambda_crit == "mad_update":
+                # break
+                if not pfm_only and linalg.norm(A - A_old) < tol * linalg.norm(A_old):
                     break
                 else:
                     diff = (abs(S_old - S) < tol).flatten()
@@ -367,6 +375,7 @@ def fista(
 
         # Update lambda
         if update_lambda:
+            nv = np.sqrt(np.sum((S_fitts + L - y) ** 2, axis=0) / nscans)
             lambda_S = np.nan_to_num(lambda_S * noise_estimate / nv)
 
     if not pfm_only:

@@ -48,11 +48,10 @@ def reshape_data(signal2d, mask):
 
     Returns
     -------
-    signal4d : (S x S x S x T) array_like
+    (S x S x S x T) array_like
         Data in 4D.
     """
-    signal4d = masking.unmask(signal2d, mask)
-    return signal4d
+    return masking.unmask(signal2d, mask)
 
 
 def update_header(filename, command):
