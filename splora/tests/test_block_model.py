@@ -71,7 +71,7 @@ def test_block_model_delay():
 
     # Check reconstruction MSE
     y_fitted = np.dot(hrf_block, S_est)
-    residual = y_noisy - y_fitted - L_est
+    residual = y_noisy - y_fitted
     mse = np.mean(residual**2)
 
     # MSE should be comparable to noise level
