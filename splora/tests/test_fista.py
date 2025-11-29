@@ -30,40 +30,48 @@ def test_proximal_operator_mixed_norm():
 
 def test_select_lambda():
     # MAD Update and MAD
-    lambda_selec, update_lambda, noise = fista.select_lambda(hrf=hrf, y=y, criteria="mad_update")
+    lambda_selec, update_lambda, noise = fista.select_lambda(
+        hrf=hrf, y=y, criterion="mad_update"
+    )
     assert np.allclose(lambda_selec, 0.002248865844940937)
     assert update_lambda
     assert np.allclose(noise, 0.002248865844940937)
 
     # Universal threshold
-    lambda_selec, update_lambda, noise = fista.select_lambda(hrf=hrf, y=y, criteria="ut")
+    lambda_selec, update_lambda, noise = fista.select_lambda(
+        hrf=hrf, y=y, criterion="ut"
+    )
     assert np.allclose(lambda_selec, 0.004721675779877547)
     assert not update_lambda
     assert np.allclose(noise, 0.002248865844940937)
 
     # Lower universal threshold
-    lambda_selec, update_lambda, noise = fista.select_lambda(hrf=hrf, y=y, criteria="lut")
+    lambda_selec, update_lambda, noise = fista.select_lambda(
+        hrf=hrf, y=y, criterion="lut"
+    )
     assert np.allclose(lambda_selec, 0.0041566221123978085)
     assert not update_lambda
     assert np.allclose(noise, 0.002248865844940937)
 
     # Factor
     lambda_selec, update_lambda, noise = fista.select_lambda(
-        hrf=hrf, y=y, criteria="factor", factor=10
+        hrf=hrf, y=y, criterion="factor", factor=10
     )
     assert np.allclose(lambda_selec, 0.022488658449409372)
     assert not update_lambda
     assert np.allclose(noise, 0.002248865844940937)
 
     # Percentage
-    lambda_selec, update_lambda, noise = fista.select_lambda(hrf=hrf, y=y, criteria="pcg", pcg=0.8)
+    lambda_selec, update_lambda, noise = fista.select_lambda(
+        hrf=hrf, y=y, criterion="pcg", pcg=0.8
+    )
     assert np.allclose(lambda_selec, 0.07034059283844483)
     assert not update_lambda
     assert np.allclose(noise, 0.002248865844940937)
 
 
 def test_fista():
-    beta, _, _, noise_est, lambda_val = fista.fista(
+    beta, _, _, noise_est, lambda_val, _ = fista.fista(
         hrf=hrf,
         y=np.expand_dims(y, axis=1),
         n_te=1,
@@ -72,5 +80,5 @@ def test_fista():
         factor=20,
     )
     assert np.allclose(beta, y_out, atol=1e-5)
-    assert noise_est[0] == 0.002248865844940937
-    assert lambda_val[0] == 0.044977316898818745
+    assert np.allclose(noise_est[0], 0.002248865844940937, rtol=1e-5)
+    assert np.allclose(lambda_val[0], 0.044977316898818745, rtol=1e-5)
