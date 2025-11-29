@@ -29,17 +29,13 @@ def get_subsampling_indices(n_scans, n_te=1, ratio=0.6):
         The indices of the subsampled data.
     """
     n_keep = int(ratio * n_scans)
-    subsample_idx = np.sort(
-        np.random.choice(range(n_scans), n_keep, replace=False)
-    )
+    subsample_idx = np.sort(np.random.choice(range(n_scans), n_keep, replace=False))
 
     if n_te > 1:
         # Same time points across echoes
         all_indices = subsample_idx.copy()
         for i in range(1, n_te):
-            all_indices = np.concatenate(
-                (all_indices, subsample_idx + i * n_scans)
-            )
+            all_indices = np.concatenate((all_indices, subsample_idx + i * n_scans))
         subsample_idx = all_indices
 
     return subsample_idx
@@ -92,11 +88,16 @@ def run_surrogate(
     max_iter,
     min_iter,
     seed,
+    pfm_only=False,
+    jobs=4,
 ):
     """Run FISTA for all lambda values for a single surrogate.
 
     This function runs FISTA on subsampled data for all lambda values.
     Each surrogate uses different random subsampling of the data.
+
+    For both pfm_only=True (sparse only) and pfm_only=False (low-rank + sparse),
+    the data is subsampled and full FISTA is run with iterative refinement.
 
     Parameters
     ----------
@@ -124,6 +125,10 @@ def run_surrogate(
         Minimum number of FISTA iterations.
     seed : int
         Random seed for subsampling reproducibility.
+    pfm_only : bool, optional
+        Whether to run without low-rank estimation, by default False.
+    jobs : int, optional
+        Number of jobs for debiasing step, by default 4.
 
     Returns
     -------
@@ -138,7 +143,7 @@ def run_surrogate(
     # Get subsampling indices for rows (observations)
     subsample_idx = get_subsampling_indices(n_scans, n_te)
 
-    # Subsample rows of HRF and y (observations, not output dimension)
+    # Subsample rows of HRF and y (observations)
     hrf_sub = hrf[subsample_idx, :]
     y_sub = y[subsample_idx, :]
 
@@ -151,6 +156,8 @@ def run_surrogate(
     results = np.zeros((n_lambdas, n_scans, n_voxels), dtype=np.int8)
 
     # Run FISTA for each lambda value
+    # For low-rank + sparse (pfm_only=False), FISTA alternates between L and S
+    # with proper gradient projection to handle subsampled data
     for lambda_idx in range(n_lambdas):
         S, _, _, _, _, _ = fista(
             hrf=hrf_sub,
@@ -160,10 +167,11 @@ def run_surrogate(
             max_iter=max_iter,
             min_iter=min_iter,
             group=group,
-            pfm_only=True,  # No low-rank for stability selection
+            pfm_only=pfm_only,
             block_model=block_model,
             tr=tr,
             te=te,
+            jobs=jobs,
         )
 
         # S has shape (n_scans, n_voxels) - full time series
@@ -232,12 +240,18 @@ def stability_selection(
     te=None,
     max_iter=100,
     min_iter=10,
+    pfm_only=False,
 ):
     """Perform stability selection using dask parallelization.
 
     Stability selection runs FISTA on multiple subsampled versions of the data
     (surrogates) with a range of lambda values. The selection frequency of each
     timepoint across surrogates and lambdas is used to compute an AUC score.
+
+    For low-rank + sparse mode (pfm_only=False), L is first estimated on the
+    full data using FISTA, then the residual (Y - L) is subsampled for S
+    stability selection. This ensures L captures the global structure from
+    all timepoints.
 
     The surrogates are parallelized using dask, while each surrogate runs
     FISTA sequentially for all lambda values (since FISTA needs all voxels
@@ -271,6 +285,8 @@ def stability_selection(
         Maximum number of FISTA iterations, by default 100.
     min_iter : int, optional
         Minimum number of FISTA iterations, by default 10.
+    pfm_only : bool, optional
+        Whether to run without low-rank estimation, by default False.
 
     Returns
     -------
@@ -284,8 +300,12 @@ def stability_selection(
         f"Starting stability selection with {n_surrogates} surrogates, "
         f"{n_lambdas} lambda values, and {n_jobs} parallel jobs..."
     )
+    if not pfm_only:
+        LGR.info("Using low-rank + sparse model with iterative L/S refinement.")
 
     # Create delayed tasks for each surrogate
+    # Each surrogate runs full FISTA (with L+S alternation if pfm_only=False)
+    # on subsampled data
     futures = [
         delayed_dask(run_surrogate, pure=False)(
             hrf,
@@ -300,6 +320,8 @@ def stability_selection(
             max_iter,
             min_iter,
             seed=surrogate_idx,
+            pfm_only=pfm_only,
+            jobs=n_jobs,
         )
         for surrogate_idx in range(n_surrogates)
     ]

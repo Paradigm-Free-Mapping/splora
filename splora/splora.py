@@ -170,8 +170,8 @@ def splora(
     hrf_obj = HRFMatrix(te=te, block=block_model)
     hrf_norm = hrf_obj.generate_hrf(tr=tr, n_scans=nscans).hrf_
 
-    if pfm_only and do_stability_selection:
-        # Run stability selection
+    if do_stability_selection:
+        # Run stability selection (works with or without low-rank)
         LGR.info("Running stability selection...")
         auc = stability_selection.stability_selection(
             hrf=hrf_norm,
@@ -187,6 +187,7 @@ def splora(
             te=te,
             max_iter=max_iter,
             min_iter=min_iter,
+            pfm_only=pfm_only,
         )
         LGR.info("Stability selection done.")
 
@@ -195,7 +196,7 @@ def splora(
         write_data(
             auc, os.path.join(out_dir, output_name), mask_img, data_header, command_str
         )
-        sys.exit("AUC saved. MvMEPFM with stability selection finished.")
+        sys.exit("AUC saved. splora with stability selection finished.")
 
     else:
         S, eigen_vecs, eigen_maps, noise_estimate, lambda_val, L = fista.fista(

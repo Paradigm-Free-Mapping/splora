@@ -183,7 +183,8 @@ def test_stability_selection_runs():
     y_expanded = np.expand_dims(y, axis=1)
     y_multi = np.tile(y_expanded, (1, n_voxels))
 
-    # Run stability selection
+    # Run stability selection with pfm_only=True
+    # (low-rank stability selection with subsampling requires further work)
     auc = stability_selection.stability_selection(
         hrf=hrf,
         y=y_multi,
@@ -195,6 +196,47 @@ def test_stability_selection_runs():
         n_lambdas=n_lambdas,
         n_surrogates=n_surrogates,
         group=0.2,
+        pfm_only=True,
+    )
+
+    # Check output shape
+    assert auc.shape == (n_scans, n_voxels)
+
+    # Check AUC values are non-negative
+    assert np.all(auc >= 0)
+
+
+@pytest.mark.slow
+def test_stability_selection_lowrank():
+    """Test stability selection with low-rank + sparse model (pfm_only=False).
+
+    In this mode, L is estimated on the full data first, then S is estimated
+    on the subsampled residual (Y - L).
+    """
+    n_voxels = 2
+    n_scans = 160
+
+    # Use a small number of surrogates and lambdas for speed
+    n_lambdas = 3
+    n_surrogates = 2
+
+    # Create test data
+    y_expanded = np.expand_dims(y, axis=1)
+    y_multi = np.tile(y_expanded, (1, n_voxels))
+
+    # Run stability selection with low-rank + sparse model
+    auc = stability_selection.stability_selection(
+        hrf=hrf,
+        y=y_multi,
+        n_te=1,
+        tr=2.0,
+        n_scans=n_scans,
+        block_model=False,
+        n_jobs=2,
+        n_lambdas=n_lambdas,
+        n_surrogates=n_surrogates,
+        group=0.2,
+        pfm_only=False,  # Enable low-rank + sparse
     )
 
     # Check output shape

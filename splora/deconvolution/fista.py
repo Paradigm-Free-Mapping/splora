@@ -167,10 +167,9 @@ def fista(
     S_fitts = y_fista_L.copy()
     y_fista_A = y_fista_L.copy()
     S = y_fista_S.copy()
-    if n_te == 1:
-        L = np.zeros((nscans, nvoxels))
-    else:
-        L = np.zeros((n_te * nscans, nvoxels))
+    # L lives in observation space (same shape as y)
+    # This allows FISTA to work with subsampled data
+    L = np.zeros(y.shape)
     A = y.copy()
 
     keep_idx = 0
@@ -238,9 +237,15 @@ def fista(
             S_fidelity = v - np.dot(hrf_cov, y_ista_S)
         else:
             if n_te > 1:
+                # Multi-echo: use second echo's data_fidelity directly
+                # (already has correct shape for S update)
                 S_fidelity = data_fidelity[nscans : 2 * nscans, :]
             else:
-                S_fidelity = data_fidelity
+                # Single-echo: project data_fidelity through hrf.T
+                # This handles both full data and subsampled data cases
+                S_fidelity = np.dot(hrf_trans, data_fidelity) - np.dot(
+                    hrf_cov, y_ista_S
+                )
 
         z_ista_S = y_ista_S + c_ist * S_fidelity
 
@@ -302,7 +307,8 @@ def fista(
                 # Residuals (only computed for non-pfm_only case)
                 nv = np.sqrt(np.sum((S_fitts + L - y) ** 2, axis=0) / nscans)
                 if (
-                    any(abs(nv - noise_estimate) < precision)
+                    precision is not None
+                    and any(abs(nv - noise_estimate) < precision)
                     and lambda_crit == "mad_update"
                 ):
                     break
