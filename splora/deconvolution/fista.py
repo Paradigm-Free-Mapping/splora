@@ -222,7 +222,10 @@ def fista(
                 keep_diff = np.where(St_diff >= eigen_thr)[0]
 
                 # Use first difference above the threshold as the number of low-rank components.
-                keep_idx = keep_diff[0]
+                if keep_diff.size > 0:
+                    keep_idx = keep_diff[0]
+                else:
+                    keep_idx = 0  # fallback: keep at least one component
 
                 LGR.info(f"{keep_idx+1} low-rank components found")
 
