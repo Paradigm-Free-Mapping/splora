@@ -1,4 +1,5 @@
 """Main."""
+
 import datetime
 import logging
 import os
@@ -6,12 +7,12 @@ import sys
 from os import path as op
 
 import numpy as np
+from pySPFM.deconvolution.debiasing import debiasing_block, debiasing_spike
+from pySPFM.deconvolution.hrf_generator import HRFMatrix
 
 from splora import utils
 from splora.cli.run import _get_parser
 from splora.deconvolution import fista
-from splora.deconvolution.debiasing import debiasing_block, debiasing_spike
-from splora.deconvolution.hrf_matrix import HRFMatrix
 from splora.io import read_data, write_data
 
 LGR = logging.getLogger("GENERAL")
@@ -34,6 +35,8 @@ def splora(
     block_model=False,
     jobs=4,
     lambda_echo=-1,
+    max_iter=100,
+    min_iter=10,
     debug=False,
     quiet=False,
 ):
@@ -69,6 +72,10 @@ def splora(
         Only used when "factor" criteria is selected.
     block_model : bool, optional
         Whether to use the block model in favor of the spike model, by default False
+    max_iter : int, optional
+        Maximum number of iterations for FISTA, by default 100
+    min_iter : int, optional
+        Minimum number of iterations for FISTA, by default 10
     debug : :obj:`bool`, optional
         Whether to run in debugging mode or not. Default is False.
     quiet : :obj:`bool`, optional
@@ -138,7 +145,9 @@ def splora(
             data_filename = data_filename[0].split(" ")
 
         for te_idx in range(n_te):
-            data_temp, data_header, mask_img = read_data(data_filename[te_idx], mask_filename)
+            data_temp, data_header, mask_img = read_data(
+                data_filename[te_idx], mask_filename
+            )
             if te_idx == 0:
                 data_masked = data_temp
                 nscans = data_temp.shape[0]
@@ -150,13 +159,15 @@ def splora(
 
     LGR.info("Data read.")
 
-    hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=block_model)
-    hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
+    hrf_obj = HRFMatrix(te=te, block=block_model)
+    hrf_norm = hrf_obj.generate_hrf(tr=tr, n_scans=nscans).hrf_
 
     S, eigen_vecs, eigen_maps, noise_estimate, lambda_val, L = fista.fista(
         hrf=hrf_norm,
         y=data_masked,
         n_te=n_te,
+        max_iter=max_iter,
+        min_iter=min_iter,
         lambda_crit=lambda_crit,
         factor=factor,
         eigen_thr=eigthr,
@@ -172,12 +183,14 @@ def splora(
     # Debiasing
     if do_debias:
         if block_model:
-            hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=False)
-            hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
-            S_deb = debiasing_block(hrf=hrf_norm, y=data_masked, auc=S)
+            hrf_obj = HRFMatrix(te=te, block=False)
+            hrf_norm = hrf_obj.generate_hrf(tr=tr, n_scans=nscans).hrf_
+            S_deb = debiasing_block(hrf=hrf_norm, y=data_masked, estimates_matrix=S)
             S_fitts = np.dot(hrf_norm, S_deb)
         else:
-            S_deb, S_fitts = debiasing_spike(hrf=hrf_norm, y=data_masked, auc=S)
+            S_deb, S_fitts = debiasing_spike(
+                hrf=hrf_norm, y=data_masked, estimates_matrix=S
+            )
     else:
         S_deb = S
         S_fitts = np.dot(hrf_norm, S_deb)
@@ -186,11 +199,13 @@ def splora(
     # Save innovation signal
     if block_model:
         output_name = f"{output_filename}_innovation.nii.gz"
-        write_data(S, os.path.join(out_dir, output_name), mask_img, data_header, command_str)
+        write_data(
+            S, os.path.join(out_dir, output_name), mask_img, data_header, command_str
+        )
 
         if not do_debias:
-            hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=False)
-            hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
+            hrf_obj = HRFMatrix(te=te, block=False)
+            hrf_norm = hrf_obj.generate_hrf(tr=tr, n_scans=nscans).hrf_
             S_deb = np.dot(np.tril(np.ones(nscans)), S_deb)
             S_fitts = np.dot(hrf_norm, S_deb)
 
@@ -199,7 +214,9 @@ def splora(
         output_name = f"{output_filename}_beta.nii.gz"
     elif n_te > 1:
         output_name = f"{output_filename}_DR2.nii.gz"
-    write_data(S_deb, os.path.join(out_dir, output_name), mask_img, data_header, command_str)
+    write_data(
+        S_deb, os.path.join(out_dir, output_name), mask_img, data_header, command_str
+    )
 
     if n_te == 1:
         output_name = f"{output_filename}_fitts.nii.gz"

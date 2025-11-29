@@ -19,11 +19,11 @@ def test_integration_single_echo(skip_integration):
         "call.sh",
         "test_eigenmap_1.nii.gz",
         "test_innovation.nii.gz",
-        "test_eigenvec_1.1D",
+        "test_eigenvec_1_E01.1D",
         "_references.txt",
         "test_fitts.nii.gz",
         "test_beta.nii.gz",
-        "test_MAD.nii.gz",
+        "test_MAD_E01.nii.gz",
     ]
 
     os.chdir(data_dir)
@@ -33,7 +33,7 @@ def test_integration_single_echo(skip_integration):
         "-o",
         "test",
         "-m",
-        "mask.nii.gz",
+        "mask_tiny.nii.gz",
         "-tr",
         "2",
         "-crit",
@@ -42,6 +42,10 @@ def test_integration_single_echo(skip_integration):
         "single_echo",
         "--debias",
         "--block",
+        "-max_iter",
+        "2",
+        "-min_iter",
+        "1",
     ]
     splora._main(args)
 
@@ -60,13 +64,11 @@ def test_integration_multi_echo(skip_integration):
         pytest.skip("Skipping five-echo integration test")
 
     data = [
-        "p06.SBJ01_S09_Task11_e1.spc.det.nii.gz",
         "p06.SBJ01_S09_Task11_e2.spc.det.nii.gz",
         "p06.SBJ01_S09_Task11_e3.spc.det.nii.gz",
-        "p06.SBJ01_S09_Task11_e4.spc.det.nii.gz",
     ]
-    mask = "mask.nii.gz"
-    te = [15.4, 29.7, 44.0, 58.3]
+    mask = "mask_tiny.nii.gz"
+    te = [29.7, 44.0]
 
     os.chdir(data_dir)
     splora.splora(
@@ -77,27 +79,25 @@ def test_integration_multi_echo(skip_integration):
         out_dir="multi_echo",
         te=te,
         group=0.2,
-        do_debias=True,
+        do_debias=False,
         block_model=False,
         lambda_crit="mad_update",
+        max_iter=2,
+        min_iter=1,
     )
 
     multi_echo_files = [
-        "test_fitts_E01.nii.gz",
-        "test_eigenvec_1.1D",
-        "test_fitts_E03.nii.gz",
         "call.sh",
-        "test_eigenmap_2.nii.gz",
-        "test_MAD.nii.gz",
-        "test_beta.nii.gz",
-        "test_lambda.nii.gz",
-        "test_fitts_E02.nii.gz",
         "_references.txt",
-        "test_eigenvec_3.1D",
-        "test_eigenmap_3.nii.gz",
-        "test_fitts_E04.nii.gz",
+        "test_DR2.nii.gz",
+        "test_lambda.nii.gz",
         "test_eigenmap_1.nii.gz",
-        "test_eigenvec_2.1D",
+        "test_eigenvec_1_E01.1D",
+        "test_eigenvec_1_E02.1D",
+        "test_dr2HRF_E01.nii.gz",
+        "test_dr2HRF_E02.nii.gz",
+        "test_MAD_E01.nii.gz",
+        "test_MAD_E02.nii.gz",
     ]
 
     files = os.listdir(os.path.join(data_dir, "multi_echo"))

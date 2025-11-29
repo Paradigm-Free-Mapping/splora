@@ -1,25 +1,137 @@
-[tool.black]
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "splora"
+description = "Low-rank and sparse paradigm free mapping for fMRI deconvolution"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+authors = [
+    { name = "Eneko Uruñuela", email = "e.urunuela@bcbl.eu" },
+]
+maintainers = [
+    { name = "Eneko Uruñuela", email = "e.urunuela@bcbl.eu" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+]
+keywords = [
+    "fMRI",
+    "deconvolution",
+    "paradigm-free mapping",
+    "low-rank",
+    "sparse",
+    "neuroimaging",
+]
+dependencies = [
+    "nibabel>=4.0.0",
+    "nilearn>=0.10.0",
+    "numpy>=1.23.0",
+    "pySPFM>=0.1.0",
+    "scipy>=1.9.0",
+    "tqdm>=4.60.0",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit>=3.0.0",
+    "ruff>=0.1.0",
+]
+doc = [
+    "sphinx>=6.0",
+    "sphinx-argparse>=0.4.0",
+    "sphinx-rtd-theme>=1.0",
+]
+test = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+]
+all = [
+    "splora[dev,doc,test]",
+]
+
+[project.scripts]
+splora = "splora.splora:_main"
+
+[project.urls]
+Homepage = "https://github.com/Paradigm-Free-Mapping/splora"
+Documentation = "https://github.com/Paradigm-Free-Mapping/splora#readme"
+Repository = "https://github.com/Paradigm-Free-Mapping/splora"
+Issues = "https://github.com/Paradigm-Free-Mapping/splora/issues"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "splora/_version.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/splora",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["splora"]
+
+[tool.ruff]
 line-length = 99
-target-version = ['py37']
-include = '\.pyi?$'
-exclude = '''
+target-version = "py310"
 
-(
-  /(
-      \.eggs         # exclude a few common directories in the
-    | \.git          # root of the project
-    | \.github
-    | \.hg
-    | \.pytest_cache
-    | _build
-    | build
-    | dist
-  )/
-  | get_version.py
-  | versioneer.py
-)
-'''
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "D",      # pydocstyle
+]
+ignore = [
+    "E203",   # whitespace before ':'
+    "E402",   # module level import not at top of file
+    "W503",   # line break before binary operator
+    "D100",   # Missing docstring in public module
+    "D104",   # Missing docstring in public package
+]
 
-[tool.isort]
-profile = "black"
-multi_line_output = 3
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+"*/__init__.py" = ["F401"]
+"splora/tests/*" = ["D"]
+
+[tool.pytest.ini_options]
+testpaths = ["splora/tests"]
+addopts = "-ra -q"
+xfail_strict = true
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["splora"]
+omit = [
+    "splora/tests/*",
+    "splora/_version.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+]

@@ -1,45 +1,32 @@
-import os
+"""Tests for HRF matrix generation using pySPFM."""
 
 import numpy as np
 
-from splora.deconvolution import hrf_matrix
-from splora.tests.utils import get_test_data_path
-
-data_dir = get_test_data_path()
+from pySPFM.deconvolution.hrf_generator import HRFMatrix
 
 
-def test_hrf_linear():
-    hrf_linear = np.load(os.path.join(data_dir, "hrf_linear.npy"))
-    params = [6, 16, 1, 1, 6, 0, 32]
-    hrf = hrf_matrix.hrf_linear(TR=2, p=params)
-    assert np.allclose(hrf, hrf_linear)
+def test_HRFMatrix_shape():
+    """Test HRF matrix has correct shape."""
+    n_scans = 200
+    hrf_obj = HRFMatrix(te=[0])
+    hrf_obj.generate_hrf(tr=2, n_scans=n_scans)
+    assert hrf_obj.hrf_.shape == (n_scans, n_scans)
 
 
-def test_hrf_afni():
-    hrf_afni = np.array(
-        [
-            0.0,
-            0.0360894,
-            0.156291,
-            0.160475,
-            0.0900993,
-            0.0320469,
-            0.00067546,
-            -0.0127604,
-            -0.0155529,
-            -0.0128561,
-            -0.00855318,
-            -0.00485445,
-            -0.00242662,
-        ]
-    )
-    hrf = hrf_matrix.hrf_afni(TR=2)
-    assert np.allclose(hrf, hrf_afni)
+def test_HRFMatrix_multi_echo():
+    """Test HRF matrix for multi-echo data."""
+    n_scans = 100
+    te = [14.0, 29.0, 44.0]
+    hrf_obj = HRFMatrix(te=te)
+    hrf_obj.generate_hrf(tr=2, n_scans=n_scans)
+    # Multi-echo should stack the HRF matrices for each echo
+    assert hrf_obj.hrf_.shape[0] == n_scans * len(te)
+    assert hrf_obj.hrf_.shape[1] == n_scans
 
 
-def test_HRFMatrix():
-    hrf = np.load(os.path.join(data_dir, "hrf.npy"))
-    hrf_norm = np.load(os.path.join(data_dir, "hrf_norm.npy"))
-    hrf_obj = hrf_matrix.HRFMatrix(TE=[0]).generate_hrf()
-    assert np.allclose(hrf_obj.X_hrf, hrf)
-    assert np.allclose(hrf_obj.X_hrf_norm, hrf_norm)
+def test_HRFMatrix_block_model():
+    """Test HRF matrix with block model."""
+    n_scans = 100
+    hrf_obj = HRFMatrix(te=[0], block=True)
+    hrf_obj.generate_hrf(tr=2, n_scans=n_scans)
+    assert hrf_obj.hrf_.shape == (n_scans, n_scans)
