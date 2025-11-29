@@ -1,6 +1,5 @@
 """Parser for splora."""
 
-
 import argparse
 
 from splora import __version__

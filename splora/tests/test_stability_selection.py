@@ -75,7 +75,9 @@ def test_lambda_value_calculation():
         voxel_data = y_multi[:, voxel]
         max_lambda = abs(np.dot(hrf.T, voxel_data)).max()
         if max_lambda > 0:
-            lambda_values[:, voxel] = np.geomspace(0.05 * max_lambda, 0.95 * max_lambda, n_lambdas)
+            lambda_values[:, voxel] = np.geomspace(
+                0.05 * max_lambda, 0.95 * max_lambda, n_lambdas
+            )
         else:
             lambda_values[:, voxel] = np.inf * np.ones(n_lambdas)
 

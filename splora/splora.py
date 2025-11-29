@@ -198,7 +198,9 @@ def splora(
 
         # Output AUC image
         output_name = f"{output_filename}_AUC.nii.gz"
-        write_data(auc, os.path.join(out_dir, output_name), mask_img, data_header, command_str)
+        write_data(
+            auc, os.path.join(out_dir, output_name), mask_img, data_header, command_str
+        )
         sys.exit("AUC saved. MvMEPFM with stability selection finished.")
 
     else:

@@ -41,19 +41,17 @@ def test_select_lambda():
     )
     assert np.allclose(lambda_selec, 0.002248865844940937, rtol=1e-5)
     assert update_lambda
-    assert np.allclose(noise, lambda_selec, rtol=1e-5)  # For mad_update, noise == lambda
+    assert np.allclose(
+        noise, lambda_selec, rtol=1e-5
+    )  # For mad_update, noise == lambda
 
     # Universal threshold
-    lambda_selec, update_lambda, noise = select_lambda(
-        hrf=hrf, y=y, criterion="ut"
-    )
+    lambda_selec, update_lambda, noise = select_lambda(hrf=hrf, y=y, criterion="ut")
     assert np.allclose(lambda_selec, 0.004721675779877547, rtol=1e-5)
     assert not update_lambda
 
     # Lower universal threshold
-    lambda_selec, update_lambda, noise = select_lambda(
-        hrf=hrf, y=y, criterion="lut"
-    )
+    lambda_selec, update_lambda, noise = select_lambda(hrf=hrf, y=y, criterion="lut")
     assert np.allclose(lambda_selec, 0.0041566221123978085, rtol=1e-5)
     assert not update_lambda
 
