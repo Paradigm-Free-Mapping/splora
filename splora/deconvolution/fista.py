@@ -140,7 +140,7 @@ def fista(
     pfm_only : boolean, optional
         Whether PFM is run with original formulation, i.e., no low-rank, by default False
     te : list, optional
-        Echo times, by default [1]
+        List of echo times in seconds, by default [1].
 
     Returns
     -------
