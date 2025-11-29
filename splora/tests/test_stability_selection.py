@@ -210,8 +210,8 @@ def test_stability_selection_runs():
 def test_stability_selection_lowrank():
     """Test stability selection with low-rank + sparse model (pfm_only=False).
 
-    In this mode, L is estimated on the full data first, then S is estimated
-    on the subsampled residual (Y - L).
+    In this mode, both L and S are estimated together on subsampled data
+    with iterative refinement.
     """
     n_voxels = 2
     n_scans = 160

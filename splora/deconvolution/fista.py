@@ -306,6 +306,8 @@ def fista(
             else:
                 # Residuals (only computed for non-pfm_only case)
                 nv = np.sqrt(np.sum((S_fitts + L - y) ** 2, axis=0) / nscans)
+                # MAD-based convergence only applies when lambda is auto-selected
+                # (precision is None when explicit lambd is provided)
                 if (
                     precision is not None
                     and any(abs(nv - noise_estimate) < precision)
@@ -319,8 +321,8 @@ def fista(
                     if (np.sum(diff) / len(diff)) > 0.5:
                         break
 
-        # Update lambda
-        if update_lambda:
+        # Update lambda (only when auto-selected, not user-provided)
+        if update_lambda and lambd is None:
             nv = np.sqrt(np.sum((S_fitts + L - y) ** 2, axis=0) / nscans)
             lambda_S = np.nan_to_num(lambda_S * noise_estimate / nv)
 

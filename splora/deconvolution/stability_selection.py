@@ -216,6 +216,8 @@ def calculate_auc(all_results, n_surrogates):
     # Average lambda values and normalize
     lambda_avg = lambda_sum / n_surrogates
     lambda_total = np.sum(lambda_avg, axis=0)
+    # Avoid division by zero
+    lambda_total = np.where(lambda_total == 0, 1, lambda_total)
     lambda_weights = lambda_avg / lambda_total[np.newaxis, :]
 
     # Calculate AUC as weighted sum
@@ -248,10 +250,10 @@ def stability_selection(
     (surrogates) with a range of lambda values. The selection frequency of each
     timepoint across surrogates and lambdas is used to compute an AUC score.
 
-    For low-rank + sparse mode (pfm_only=False), L is first estimated on the
-    full data using FISTA, then the residual (Y - L) is subsampled for S
-    stability selection. This ensures L captures the global structure from
-    all timepoints.
+    For both low-rank + sparse mode (pfm_only=False) and sparse-only mode
+    (pfm_only=True), subsampling is applied to the input data before FISTA runs.
+    FISTA is run directly on the subsampled data for each surrogate, regardless
+    of the pfm_only parameter.
 
     The surrogates are parallelized using dask, while each surrogate runs
     FISTA sequentially for all lambda values (since FISTA needs all voxels

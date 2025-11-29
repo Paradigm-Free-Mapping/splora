@@ -196,7 +196,8 @@ def splora(
         write_data(
             auc, os.path.join(out_dir, output_name), mask_img, data_header, command_str
         )
-        sys.exit("AUC saved. splora with stability selection finished.")
+        LGR.info("AUC saved. splora with stability selection finished.")
+        sys.exit(0)
 
     else:
         S, eigen_vecs, eigen_maps, noise_estimate, lambda_val, L = fista.fista(
