@@ -3,8 +3,7 @@
 import logging
 
 import numpy as np
-from pySPFM.deconvolution.debiasing import debiasing_block, debiasing_spike
-from pySPFM.deconvolution.hrf_generator import HRFMatrix
+from pySPFM.deconvolution.debiasing import debiasing_spike
 from pySPFM.deconvolution.select_lambda import select_lambda
 from scipy import linalg
 
