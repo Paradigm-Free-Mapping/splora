@@ -24,7 +24,7 @@ jobs:
       - run:
           name: Run linting
           command: |
-            uv run flake8 splora
+            uv run ruff check splora
 
   unit_tests:
     parameters:
