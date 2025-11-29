@@ -88,6 +88,7 @@ def fista(
     hrf,
     y,
     n_te,
+    lambd=None,
     max_iter=100,
     min_iter=10,
     lambda_crit="mad_update",
@@ -115,6 +116,9 @@ def fista(
         Matrix with fMRI data provided to splora.
     n_te : int
         Number of echo-times provided.
+    lambd : array_like, optional
+        Regularization parameter lambda for each voxel, by default None.
+        If None, lambda is selected based on lambda_crit.
     max_iter : int, optional
         Maximum number of iterations for FISTA, by default 100
     min_iter : int, optional
@@ -135,6 +139,8 @@ def fista(
         Weight for grouping effect over sparsity, by default 0.2
     pfm_only : boolean, optional
         Whether PFM is run with original formulation, i.e., no low-rank, by default False
+    te : list, optional
+        List of echo times in seconds, by default [1].
 
     Returns
     -------
@@ -161,29 +167,29 @@ def fista(
     S_fitts = y_fista_L.copy()
     y_fista_A = y_fista_L.copy()
     S = y_fista_S.copy()
-    if n_te == 1:
-        L = np.zeros((nscans, nvoxels))
-    else:
-        L = np.zeros((n_te * nscans, nvoxels))
+    # L lives in observation space (same shape as y)
+    # This allows FISTA to work with subsampled data
+    L = np.zeros(y.shape)
     A = y.copy()
-    # data_fidelity = y - y_fista_L
 
     keep_idx = 0
     t_fista = 1
+    update_lambda = False
 
-    # Select lambda for each voxel based on criteria
-    lambda_S, update_lambda, noise_estimate = select_lambda(
-        hrf, y, criterion=lambda_crit, factor=factor, lambda_echo=lambda_echo
-    )
+    # Select lambda for each voxel based on criteria if no lambda is given
+    if lambd is None:
+        lambda_S, update_lambda, noise_estimate = select_lambda(
+            hrf, y, factor=factor, criterion=lambda_crit, lambda_echo=lambda_echo
+        )
+    else:
+        lambda_S = lambd
+        noise_estimate = np.zeros(nvoxels)
 
-    # LGR.info(f"Selected lambda is {lambda_S}")
-
-    if precision is None:
+    if precision is None and update_lambda:
         precision = noise_estimate / 100000
 
     # Perform FISTA
     for num_iter in range(max_iter):
-
         LGR.info(f"Iteration {num_iter + 1}/{max_iter}")
 
         if not pfm_only:
@@ -215,13 +221,6 @@ def fista(
 
                 # Use first difference above the threshold as the number of low-rank components.
                 keep_idx = keep_diff[0]
-                # diff_old = -1
-                # for i in range(len(keep_diff)):
-                #     if (keep_diff[i] - diff_old) == 1:
-                #         keep_idx = keep_diff[i] + 1
-                #     else:
-                #         break
-                #     diff_old = keep_diff[i]
 
                 LGR.info(f"{keep_idx+1} low-rank components found")
 
@@ -238,9 +237,15 @@ def fista(
             S_fidelity = v - np.dot(hrf_cov, y_ista_S)
         else:
             if n_te > 1:
+                # Multi-echo: use second echo's data_fidelity directly
+                # (already has correct shape for S update)
                 S_fidelity = data_fidelity[nscans : 2 * nscans, :]
             else:
-                S_fidelity = data_fidelity
+                # Single-echo: project data_fidelity through hrf.T
+                # This handles both full data and subsampled data cases
+                S_fidelity = np.dot(hrf_trans, data_fidelity) - np.dot(
+                    hrf_cov, y_ista_S
+                )
 
         z_ista_S = y_ista_S + c_ist * S_fidelity
 
@@ -272,9 +277,8 @@ def fista(
             S_spike = S
             S_fitts = np.dot(hrf, S)
 
-        # breakpoint()
-
-        A = y_ista_A + np.dot(hrf, S_spike - y_ista_S) + (L - y_ista_L)
+        if not pfm_only:
+            A = y_ista_A + np.dot(hrf, S_spike - y_ista_S) + (L - y_ista_L)
 
         t_fista_old = t_fista
         t_fista = 0.5 * (1 + np.sqrt(1 + 4 * (t_fista_old**2)))
@@ -282,9 +286,6 @@ def fista(
         y_fista_S = S + (S - S_old) * (t_fista_old - 1) / t_fista
         y_fista_L = L + (L - L_old) * (t_fista_old - 1) / t_fista
         y_fista_A = A + (A - A_old) * (t_fista_old - 1) / t_fista
-
-        # Residuals
-        nv = np.sqrt(np.sum((S_fitts + L - y) ** 2, axis=0) / nscans)
 
         # Convergence
         if num_iter >= min_iter:
@@ -303,8 +304,13 @@ def fista(
                 if np.all(convergence_criteria <= tol):
                     break
             else:
+                # Residuals (only computed for non-pfm_only case)
+                nv = np.sqrt(np.sum((S_fitts + L - y) ** 2, axis=0) / nscans)
+                # MAD-based convergence only applies when lambda is auto-selected
+                # (precision is None when explicit lambd is provided)
                 if (
-                    any(abs(nv - noise_estimate) < precision)
+                    precision is not None
+                    and any(abs(nv - noise_estimate) < precision)
                     and lambda_crit == "mad_update"
                 ):
                     break
@@ -315,8 +321,9 @@ def fista(
                     if (np.sum(diff) / len(diff)) > 0.5:
                         break
 
-        # Update lambda
-        if update_lambda:
+        # Update lambda (only when auto-selected, not user-provided)
+        if update_lambda and lambd is None:
+            nv = np.sqrt(np.sum((S_fitts + L - y) ** 2, axis=0) / nscans)
             lambda_S = np.nan_to_num(lambda_S * noise_estimate / nv)
 
     if not pfm_only:

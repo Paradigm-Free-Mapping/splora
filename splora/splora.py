@@ -9,10 +9,11 @@ from os import path as op
 import numpy as np
 from pySPFM.deconvolution.debiasing import debiasing_block, debiasing_spike
 from pySPFM.deconvolution.hrf_generator import HRFMatrix
+from pySPFM.deconvolution.select_lambda import select_lambda
 
 from splora import utils
 from splora.cli.run import _get_parser
-from splora.deconvolution import fista
+from splora.deconvolution import fista, stability_selection
 from splora.io import read_data, write_data
 
 LGR = logging.getLogger("GENERAL")
@@ -37,6 +38,7 @@ def splora(
     lambda_echo=-1,
     max_iter=100,
     min_iter=10,
+    do_stability_selection=False,
     debug=False,
     quiet=False,
 ):
@@ -72,10 +74,17 @@ def splora(
         Only used when "factor" criteria is selected.
     block_model : bool, optional
         Whether to use the block model in favor of the spike model, by default False
+    jobs : int, optional
+        Number of jobs to run in parallel, by default 4
+    lambda_echo : int, optional
+        Index of echo to use for lambda selection, by default -1
+        If -1, the lambda is selected from the last of all echoes.
     max_iter : int, optional
         Maximum number of iterations for FISTA, by default 100
     min_iter : int, optional
         Minimum number of iterations for FISTA, by default 10
+    do_stability_selection : bool, optional
+        Whether to perform stability selection, by default False
     debug : :obj:`bool`, optional
         Whether to run in debugging mode or not. Default is False.
     quiet : :obj:`bool`, optional
@@ -87,7 +96,10 @@ def splora(
     te_str = str(te).strip("[]")
     arguments = f"-i {data_str} -m {mask_filename} -o {output_filename} -tr {tr} "
     arguments += f"-d {out_dir} -te {te_str} -eigthr {eigthr} -group {group} -crit {lambda_crit} "
-    arguments += f"-factor {factor} "
+    arguments += f"-factor {factor} -jobs {jobs} -lambda_echo {lambda_echo} "
+    arguments += f"-max_iter {max_iter} -min_iter {min_iter} "
+    if do_stability_selection:
+        arguments += "-stability "
     if do_debias:
         arguments += "--debias "
     if pfm_only:
@@ -105,13 +117,9 @@ def splora(
     if not op.isdir(out_dir):
         os.mkdir(out_dir)
 
-    # Save command into sh file
-    command_file = open(os.path.join(out_dir, "call.sh"), "w")
-    command_file.write(command_str)
-    command_file.close()
+    with open(os.path.join(out_dir, "call.sh"), "w") as command_file:
+        command_file.write(command_str)
 
-    LGR = logging.getLogger("GENERAL")
-    # RefLGR = logging.getLogger("REFERENCES")
     # create logfile name
     basename = "splora_"
     extension = "tsv"
@@ -153,7 +161,6 @@ def splora(
                 data_masked = data_temp
                 nscans = data_temp.shape[0]
             else:
-                # data_temp, _, _, _ = read_data(data_filename[te_idx], mask_filename, mask_idxs)
                 data_masked = np.concatenate((data_masked, data_temp), axis=0)
 
             LGR.info(f"{te_idx + 1}/{n_te} echoes...")
@@ -163,23 +170,53 @@ def splora(
     hrf_obj = HRFMatrix(te=te, block=block_model)
     hrf_norm = hrf_obj.generate_hrf(tr=tr, n_scans=nscans).hrf_
 
-    S, eigen_vecs, eigen_maps, noise_estimate, lambda_val, L = fista.fista(
-        hrf=hrf_norm,
-        y=data_masked,
-        n_te=n_te,
-        max_iter=max_iter,
-        min_iter=min_iter,
-        lambda_crit=lambda_crit,
-        factor=factor,
-        eigen_thr=eigthr,
-        group=group,
-        pfm_only=pfm_only,
-        block_model=block_model,
-        tr=tr,
-        te=te,
-        jobs=jobs,
-        lambda_echo=lambda_echo,
-    )
+    if do_stability_selection:
+        # Run stability selection (works with or without low-rank)
+        LGR.info("Running stability selection...")
+        auc = stability_selection.stability_selection(
+            hrf=hrf_norm,
+            y=data_masked,
+            n_te=n_te,
+            tr=tr,
+            n_scans=nscans,
+            block_model=block_model,
+            n_jobs=jobs,
+            n_lambdas=30,
+            n_surrogates=30,
+            group=group,
+            te=te,
+            max_iter=max_iter,
+            min_iter=min_iter,
+            pfm_only=pfm_only,
+        )
+        LGR.info("Stability selection done.")
+
+        # Output AUC image
+        output_name = f"{output_filename}_AUC.nii.gz"
+        write_data(
+            auc, os.path.join(out_dir, output_name), mask_img, data_header, command_str
+        )
+        LGR.info("AUC saved. splora with stability selection finished.")
+        sys.exit(0)
+
+    else:
+        S, eigen_vecs, eigen_maps, noise_estimate, lambda_val, L = fista.fista(
+            hrf=hrf_norm,
+            y=data_masked,
+            n_te=n_te,
+            max_iter=max_iter,
+            min_iter=min_iter,
+            lambda_crit=lambda_crit,
+            factor=factor,
+            eigen_thr=eigthr,
+            group=group,
+            pfm_only=pfm_only,
+            block_model=block_model,
+            tr=tr,
+            te=te,
+            jobs=jobs,
+            lambda_echo=lambda_echo,
+        )
 
     # Debiasing
     if do_debias:
@@ -290,7 +327,7 @@ def splora(
             y_echo = data_masked[:nscans, :]
         else:
             y_echo = data_masked[te_idx * nscans : (te_idx + 1) * nscans, :]
-        _, _, noise_estimate = fista.select_lambda(hrf=hrf_norm, y=y_echo)
+        _, _, noise_estimate = select_lambda(hrf=hrf_norm, y=y_echo)
         write_data(
             np.expand_dims(noise_estimate, axis=0),
             os.path.join(out_dir, output_name),

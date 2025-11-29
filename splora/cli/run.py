@@ -1,6 +1,5 @@
 """Parser for splora."""
 
-
 import argparse
 
 from splora import __version__
@@ -158,6 +157,14 @@ def _get_parser():
         type=int,
         help="Minimum number of iterations for FISTA (default = 10).",
         default=10,
+    )
+    optional.add_argument(
+        "-stability",
+        "--stability_selection",
+        dest="do_stability_selection",
+        action="store_true",
+        help="Perform stability selection (default = False).",
+        default=False,
     )
     optional.add_argument(
         "-debug",
