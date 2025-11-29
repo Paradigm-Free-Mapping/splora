@@ -1,0 +1,47 @@
+name: Publish to PyPI
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-publish:
+    runs-on: ubuntu-latest
+    # This ensures that the publish action only runs in the main repository
+    # rather than forks
+    environment: release
+    if: github.repository_owner == 'Paradigm-Free-Mapping'
+    permissions:
+      id-token: write # this permission is mandatory for pypi publishing
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # This fetch element is only important if you are use SCM based
+          # versioning (that looks at git tags to gather the version)
+          fetch-depth: 100
+
+      # Need the tags so that setuptools-scm can form a valid version number
+      - name: Fetch git tags
+        run: git fetch origin 'refs/tags/*:refs/tags/*'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Hatch
+        run: |
+          pipx install hatch
+          pip list
+
+      - name: Build package using Hatch
+        run: |
+          hatch build
+          echo ""
+          echo "Generated files:"
+          ls -lh dist/
+
+      - name: Publish package to PyPI
+        # Only publish to real PyPI on release
+        if: github.event_name == 'release'
+        uses: pypa/gh-action-pypi-publish@release/v1
