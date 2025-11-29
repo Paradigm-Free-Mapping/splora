@@ -1,12 +1,5 @@
-import os
-import ssl
-import tarfile
-from gzip import GzipFile
-from io import BytesIO
-from urllib.request import urlretrieve
 
 import pytest
-import requests
 
 
 def pytest_addoption(parser):

@@ -25,7 +25,7 @@ def splora(
     output_filename,
     tr,
     out_dir,
-    te=[0],
+    te=None,
     eigthr=0.1,
     group=0,
     do_debias=False,
@@ -81,7 +81,8 @@ def splora(
     quiet : :obj:`bool`, optional
         If True, suppresses logging/LGRing of messages. Default is False.
     """
-
+    if te is None:
+        te = [0]
     data_str = str(data_filename).strip("[]")
     te_str = str(te).strip("[]")
     arguments = f"-i {data_str} -m {mask_filename} -o {output_filename} -tr {tr} "
@@ -127,7 +128,7 @@ def splora(
         "(pp. 1726-1729). IEEE."
     )
 
-    LGR.info("Using output directory: {}".format(out_dir))
+    LGR.info(f"Using output directory: {out_dir}")
 
     n_te = len(te)
 
