@@ -1,253 +1,321 @@
 """Stability selection for the deconvolution problem."""
 
 import logging
-import subprocess
-import time
-from os.path import join as opj
 
 import numpy as np
+from dask import compute
+from dask import delayed as delayed_dask
+
+from splora.deconvolution.fista import fista
 
 LGR = logging.getLogger("GENERAL")
 
 
-def subsample(nscans, mode, nTE):
-    """Subsample the data for stability selection.
+def get_subsampling_indices(n_scans, n_te=1, ratio=0.6):
+    """Get subsampling indices for stability selection.
 
     Parameters
     ----------
-    nscans : int
+    n_scans : int
         The number of scans.
-    mode : int
-        The subsampling mode.
-        Mode 1: different time points are selected across echoes.
-        Mode > 1: same time points are selected across echoes.
-    nTE : int
-        The number of echo times.
+    n_te : int, optional
+        The number of echo times, by default 1.
+    ratio : float, optional
+        The ratio of time points to keep, by default 0.6.
 
     Returns
     -------
-    subsample_idx : array
+    subsample_idx : np.ndarray
         The indices of the subsampled data.
     """
-    # Subsampling for Stability Selection
-    if mode == 1:  # different time points are selected across echoes
-        subsample_idx = np.sort(
-            np.random.choice(range(nscans), int(0.6 * nscans), replace=False)
-        )  # 60% of timepoints are kept
-        if nTE > 1:
-            for i in range(nTE - 1):
-                subsample_idx = np.concatenate(
-                    (
-                        subsample_idx,
-                        np.sort(
-                            np.random.choice(
-                                range((i + 1) * nscans, (i + 2) * nscans),
-                                int(0.6 * nscans),
-                                replace=False,
-                            )
-                        ),
-                    )
-                )
+    n_keep = int(ratio * n_scans)
+    subsample_idx = np.sort(
+        np.random.choice(range(n_scans), n_keep, replace=False)
+    )
 
-    elif mode > 1:  # same time points are selected across echoes
-        subsample_idx = np.sort(
-            np.random.choice(range(nscans), int(0.6 * nscans), replace=False)
-        )  # 60% of timepoints are kept
+    if n_te > 1:
+        # Same time points across echoes
+        all_indices = subsample_idx.copy()
+        for i in range(1, n_te):
+            all_indices = np.concatenate(
+                (all_indices, subsample_idx + i * n_scans)
+            )
+        subsample_idx = all_indices
 
     return subsample_idx
 
 
-def bget(cmd):
-    """Run a command on the cluster and return the output.
+def calculate_lambda_range(hrf, y, n_lambdas=30):
+    """Calculate the lambda range for each voxel.
 
     Parameters
     ----------
-    cmd : str
-        The command to run.
+    hrf : np.ndarray
+        The hemodynamic response function matrix.
+    y : np.ndarray
+        The data matrix (n_timepoints x n_voxels).
+    n_lambdas : int, optional
+        The number of lambda values, by default 30.
 
     Returns
     -------
-    list
-        The output of the command.
+    lambda_values : np.ndarray
+        The lambda values (n_lambdas x n_voxels).
     """
-    from subprocess import PIPE, Popen
+    n_voxels = y.shape[1]
+    lambda_values = np.zeros((n_lambdas, n_voxels))
 
-    out = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
-    (stdout, _) = out.communicate()
-    return stdout.decode().split()
+    for voxel in range(n_voxels):
+        voxel_data = y[:, voxel]
+        max_lambda = abs(np.dot(hrf.T, voxel_data)).max()
+
+        if max_lambda > 0:
+            lambda_values[:, voxel] = np.geomspace(
+                0.05 * max_lambda, 0.95 * max_lambda, n_lambdas
+            )
+        else:
+            lambda_values[:, voxel] = np.inf * np.ones(n_lambdas)
+
+    return lambda_values
 
 
-def send_job(
-    jobname, lambda_values, data, hrf, nTE, group, block_model, tr, jobs, n_sur, temp, nscans
+def run_surrogate(
+    hrf,
+    y,
+    n_scans,
+    n_te,
+    n_lambdas,
+    group,
+    block_model,
+    tr,
+    te,
+    max_iter,
+    min_iter,
+    seed,
 ):
-    """Send a job to the cluster to perform stability selection.
+    """Run FISTA for all lambda values for a single surrogate.
+
+    This function runs FISTA on subsampled data for all lambda values.
+    Each surrogate uses different random subsampling of the data.
 
     Parameters
     ----------
-    jobname : str
-        The name of the job.
-    lambda_values : str
-        The path to the lambda values.
-    data : str
-        The path to the data.
-    hrf : str
-        The path to the hrf.
-    nTE : int
+    hrf : np.ndarray
+        The HRF matrix (n_samples x n_scans).
+    y : np.ndarray
+        The data matrix (n_samples x n_voxels).
+    n_scans : int
+        The number of scans (columns of HRF / output timepoints).
+    n_te : int
         The number of echo times.
+    n_lambdas : int
+        The number of lambda values.
     group : float
-        The group sparsity.
+        The group sparsity weight.
     block_model : bool
         Whether to use a block model.
     tr : float
         The repetition time.
-    jobs : int
-        The number of jobs to run in parallel.
-    n_sur : int
-        The number of surrogates.
-    temp : str
-        The path to the temporary directory.
-    nscans : int
-        The number of scans.
+    te : list
+        The echo times.
+    max_iter : int
+        Maximum number of FISTA iterations.
+    min_iter : int
+        Minimum number of FISTA iterations.
+    seed : int
+        Random seed for subsampling reproducibility.
+
+    Returns
+    -------
+    results : np.ndarray
+        Boolean array of non-zero coefficients (n_lambdas x n_scans x n_voxels).
+    lambda_values : np.ndarray
+        Lambda values used (n_lambdas x n_voxels).
     """
-    env_vars = (
-        f"LAMBDAS={lambda_values},DATA={data},HRF={hrf},nTE={nTE},GROUP={group},"
-        f"BLOCK={block_model},TR={tr},JOBS={jobs},NSURR={n_sur},TEMP={temp},NSCANS={nscans}"
-    )
-    subprocess.call("module purge", shell=True)
-    subprocess.call(
-        f"sbatch -J {jobname} -o /scratch/enekouru/{jobname} -e /scratch/enekouru/{jobname} "
-        f"--export={env_vars} /scratch/enekouru/splora/splora/deconvolution/compute_fista.slurm",
-        shell=True,
-    )
+    # Set random seed for reproducibility
+    np.random.seed(seed)
+
+    # Get subsampling indices for rows (observations)
+    subsample_idx = get_subsampling_indices(n_scans, n_te)
+
+    # Subsample rows of HRF and y (observations, not output dimension)
+    hrf_sub = hrf[subsample_idx, :]
+    y_sub = y[subsample_idx, :]
+
+    # Calculate lambda range for subsampled data
+    lambda_values = calculate_lambda_range(hrf_sub, y_sub, n_lambdas)
+
+    n_voxels = y.shape[1]
+
+    # Results array - S output will still be (n_scans x n_voxels)
+    results = np.zeros((n_lambdas, n_scans, n_voxels), dtype=np.int8)
+
+    # Run FISTA for each lambda value
+    for lambda_idx in range(n_lambdas):
+        S, _, _, _, _, _ = fista(
+            hrf=hrf_sub,
+            y=y_sub,
+            n_te=n_te,
+            lambd=lambda_values[lambda_idx, :],
+            max_iter=max_iter,
+            min_iter=min_iter,
+            group=group,
+            pfm_only=True,  # No low-rank for stability selection
+            block_model=block_model,
+            tr=tr,
+            te=te,
+        )
+
+        # S has shape (n_scans, n_voxels) - full time series
+        nonzero = (np.abs(S) > np.finfo(float).eps).astype(np.int8)
+        results[lambda_idx, :, :] = nonzero
+
+    return results, lambda_values
+
+
+def calculate_auc(all_results, n_surrogates):
+    """Calculate the Area Under the Curve (AUC) for stability selection.
+
+    Parameters
+    ----------
+    all_results : list
+        List of (results, lambda_values) tuples from each surrogate.
+        results shape: (n_lambdas, n_scans, n_voxels)
+        lambda_values shape: (n_lambdas, n_voxels)
+    n_surrogates : int
+        The number of surrogates.
+
+    Returns
+    -------
+    auc : np.ndarray
+        The AUC values (n_scans x n_voxels).
+    """
+    # Get dimensions from first result
+    first_results, first_lambdas = all_results[0]
+    n_lambdas, n_scans, n_voxels = first_results.shape
+
+    # Accumulate selection frequencies and lambda values
+    selection_sum = np.zeros((n_lambdas, n_scans, n_voxels))
+    lambda_sum = np.zeros((n_lambdas, n_voxels))
+
+    for results, lambda_values in all_results:
+        selection_sum += results
+        lambda_sum += lambda_values
+
+    # Average selection frequencies
+    selection_freq = selection_sum / n_surrogates
+
+    # Average lambda values and normalize
+    lambda_avg = lambda_sum / n_surrogates
+    lambda_total = np.sum(lambda_avg, axis=0)
+    lambda_weights = lambda_avg / lambda_total[np.newaxis, :]
+
+    # Calculate AUC as weighted sum
+    auc = np.zeros((n_scans, n_voxels))
+    for lambda_idx in range(n_lambdas):
+        auc += selection_freq[lambda_idx, :, :] * lambda_weights[lambda_idx, :]
+
+    return auc
 
 
 def stability_selection(
     hrf,
     y,
-    nTE,
+    n_te,
     tr,
-    temp,
     n_scans,
     block_model=False,
-    jobs=4,
+    n_jobs=4,
     n_lambdas=30,
     n_surrogates=30,
     group=0.2,
-    saved_data=False,
+    te=None,
+    max_iter=100,
+    min_iter=10,
 ):
-    """Perform stability selection on the data.
+    """Perform stability selection using dask parallelization.
+
+    Stability selection runs FISTA on multiple subsampled versions of the data
+    (surrogates) with a range of lambda values. The selection frequency of each
+    timepoint across surrogates and lambdas is used to compute an AUC score.
+
+    The surrogates are parallelized using dask, while each surrogate runs
+    FISTA sequentially for all lambda values (since FISTA needs all voxels
+    at once for the low-rank estimation).
 
     Parameters
     ----------
-    hrf : array
-        The hemodynamic response function.
-    y : array
-        The data.
-    nTE : int
+    hrf : np.ndarray
+        The hemodynamic response function matrix.
+    y : np.ndarray
+        The data matrix (n_timepoints x n_voxels).
+    n_te : int
         The number of echo times.
     tr : float
         The repetition time.
-    temp : str
-        The path to the temporary directory.
     n_scans : int
         The number of scans.
     block_model : bool, optional
         Whether to use a block model, by default False.
-    jobs : int, optional
-        The number of jobs to run in parallel, by default 4.
+    n_jobs : int, optional
+        The number of parallel jobs, by default 4.
     n_lambdas : int, optional
         The number of lambda values to use, by default 30.
     n_surrogates : int, optional
         The number of surrogates to use, by default 30.
     group : float, optional
-        The group sparsity, by default 0.2.
-    saved_data : bool, optional
-        Whether the data has already been saved, by default False.
+        The group sparsity weight, by default 0.2.
+    te : list, optional
+        List of echo times, by default None.
+    max_iter : int, optional
+        Maximum number of FISTA iterations, by default 100.
+    min_iter : int, optional
+        Minimum number of FISTA iterations, by default 10.
 
     Returns
     -------
-    auc : array
-        The auc values.
+    auc : np.ndarray
+        The AUC values (n_scans x n_voxels).
     """
-    # Get n_scans and n_voxels from y
-    n_voxels = y.shape[1]
+    if te is None:
+        te = [1]
 
-    # Initialize a matrix of zeros with size n_lambdas n_voxels x n_lambdas
-    lambda_values = np.zeros((n_lambdas, n_voxels))
+    LGR.info(
+        f"Starting stability selection with {n_surrogates} surrogates, "
+        f"{n_lambdas} lambda values, and {n_jobs} parallel jobs..."
+    )
 
-    # For each voxel calculate the lambda values
-    for voxel in range(n_voxels):
-        # Get the voxel data
-        voxel_data = y[:, voxel]
+    # Create delayed tasks for each surrogate
+    futures = [
+        delayed_dask(run_surrogate, pure=False)(
+            hrf,
+            y,
+            n_scans,
+            n_te,
+            n_lambdas,
+            group,
+            block_model,
+            tr,
+            te,
+            max_iter,
+            min_iter,
+            seed=surrogate_idx,
+        )
+        for surrogate_idx in range(n_surrogates)
+    ]
 
-        # Calculate the maximum lambda possible
-        max_lambda = abs(np.dot(hrf.T, voxel_data)).max()
+    # Execute all surrogates in parallel
+    LGR.info(f"Running {n_surrogates} surrogates in parallel...")
+    if n_jobs > 1:
+        all_results = compute(*futures, scheduler="threads", num_workers=n_jobs)
+    else:
+        all_results = compute(*futures, scheduler="single-threaded")
 
-        LGR.debug(f"Maximum lambda for voxel {voxel} is {max_lambda}")
+    LGR.info("All surrogates completed. Computing AUC...")
 
-        # Calculate the lambda values in a log scale from 0.05 to 0.95 percent
-        # of the maximum lambda if the maximum lambda is not zero.
-        # Otherwise, make it all np.inf
-        if max_lambda > 0:
-            lambda_values[:, voxel] = np.geomspace(0.05 * max_lambda, 0.95 * max_lambda, n_lambdas)
-        else:
-            lambda_values[:, voxel] = np.inf * np.ones(n_lambdas)
+    # Calculate AUC from all results
+    auc = calculate_auc(all_results, n_surrogates)
 
-    # Save the lambda values to a npy file
-    np.save(opj(temp, "lambda_range.npy"), lambda_values)
+    LGR.info("Stability selection completed.")
 
-    # Save hrf and y into npy files
-    np.save(opj(temp, "hrf.npy"), hrf)
-    np.save(opj(temp, "data.npy"), y)
-
-    # Iterate through the number of surrogates and send jobs to the cluster
-    # to perform stability selection
-    if not saved_data:
-        for surrogate in range(n_surrogates):
-            jobname = f"stabsel_{surrogate}"
-
-            send_job(
-                jobname,
-                opj(temp, "lambda_range.npy"),
-                opj(temp, "data.npy"),
-                opj(temp, "hrf.npy"),
-                nTE,
-                group,
-                block_model,
-                tr,
-                jobs,
-                surrogate,
-                temp,
-                n_scans,
-            )
-
-        while int(bget(f"ls {str(temp)}/beta_* | wc -l")[0]) < (n_surrogates * n_lambdas):
-            time.sleep(0.5)
-
-    # Read the results from the cluster for each surrogate and lambda
-    for lambda_idx in range(n_lambdas):
-        for surrogate in range(n_surrogates):
-            # Read the result from the cluster
-            result = np.load(opj(temp, f"beta_{surrogate}_{lambda_idx}.npy"))
-            if surrogate == 0:
-                auc_sum = result.astype(int)
-            else:
-                auc_sum += result.astype(int)
-
-        if lambda_idx == 0:
-            auc = (
-                auc_sum
-                / n_surrogates
-                * lambda_values[lambda_idx, :]
-                / np.sum(lambda_values, axis=0)
-            )
-        else:
-            auc += (
-                auc_sum
-                / n_surrogates
-                * lambda_values[lambda_idx, :]
-                / np.sum(lambda_values, axis=0)
-            )
-
-    # Return the auc values
     return auc

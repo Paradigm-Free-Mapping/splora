@@ -167,14 +167,6 @@ def _get_parser():
         default=False,
     )
     optional.add_argument(
-        "-saved",
-        "--saved",
-        dest="saved_data",
-        action="store_true",
-        help="Use data saved in temp folder to calculate AUC.",
-        default=False,
-    )
-    optional.add_argument(
         "-debug",
         "--debug",
         dest="debug",

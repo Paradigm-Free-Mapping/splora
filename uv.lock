@@ -1864,6 +1864,7 @@ wheels = [
 name = "splora"
 source = { editable = "." }
 dependencies = [
+    { name = "dask" },
     { name = "nibabel" },
     { name = "nilearn" },
     { name = "numpy" },
@@ -1901,6 +1902,7 @@ test = [
 
 [package.metadata]
 requires-dist = [
+    { name = "dask", specifier = ">=2023.1.0" },
     { name = "nibabel", specifier = ">=4.0.0" },
     { name = "nilearn", specifier = ">=0.10.0" },
     { name = "numpy", specifier = ">=1.23.0" },

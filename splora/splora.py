@@ -39,7 +39,6 @@ def splora(
     max_iter=100,
     min_iter=10,
     do_stability_selection=False,
-    saved_data=False,
     debug=False,
     quiet=False,
 ):
@@ -86,8 +85,6 @@ def splora(
         Minimum number of iterations for FISTA, by default 10
     do_stability_selection : bool, optional
         Whether to perform stability selection, by default False
-    saved_data : bool, optional
-        Whether to use saved data instead of running stability selection entirely, by default False
     debug : :obj:`bool`, optional
         Whether to run in debugging mode or not. Default is False.
     quiet : :obj:`bool`, optional
@@ -103,8 +100,6 @@ def splora(
     arguments += f"-max_iter {max_iter} -min_iter {min_iter} "
     if do_stability_selection:
         arguments += "-stability "
-    if saved_data:
-        arguments += "-saved "
     if do_debias:
         arguments += "--debias "
     if pfm_only:
@@ -176,23 +171,22 @@ def splora(
     hrf_norm = hrf_obj.generate_hrf(tr=tr, n_scans=nscans).hrf_
 
     if pfm_only and do_stability_selection:
-        # Generate temp directory in output directory to store stability selection results
-        temp_dir = op.join(out_dir, "temp")
-        if not op.isdir(temp_dir):
-            os.mkdir(temp_dir)
-
         # Run stability selection
         LGR.info("Running stability selection...")
         auc = stability_selection.stability_selection(
-            hrf_norm,
-            data_masked,
-            n_te,
-            tr,
-            temp_dir,
-            nscans,
-            block_model,
-            jobs,
-            saved_data=saved_data,
+            hrf=hrf_norm,
+            y=data_masked,
+            n_te=n_te,
+            tr=tr,
+            n_scans=nscans,
+            block_model=block_model,
+            n_jobs=jobs,
+            n_lambdas=30,
+            n_surrogates=30,
+            group=group,
+            te=te,
+            max_iter=max_iter,
+            min_iter=min_iter,
         )
         LGR.info("Stability selection done.")
 
