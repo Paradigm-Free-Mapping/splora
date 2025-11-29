@@ -103,7 +103,6 @@ select = [
 ignore = [
     "E203",   # whitespace before ':'
     "E402",   # module level import not at top of file
-    "W503",   # line break before binary operator
     "D100",   # Missing docstring in public module
     "D104",   # Missing docstring in public package
 ]

@@ -100,7 +100,7 @@ def fista(
     out_dir=None,
     block_model=False,
     tr=2,
-    te=[1],
+    te=None,
     jobs=4,
     lambda_echo=-1,
 ):
@@ -146,6 +146,8 @@ def fista(
     eig_maps : (S x ) aray_like
         Spatial maps of the estimated low-rank components.
     """
+    if te is None:
+        te = [1]
     nvoxels = y.shape[1]
     nscans = hrf.shape[1]
 
