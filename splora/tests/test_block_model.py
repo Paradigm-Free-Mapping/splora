@@ -1,8 +1,8 @@
-
-
 import numpy as np
 from pySPFM.deconvolution.hrf_generator import HRFMatrix
+
 from splora.deconvolution import fista
+
 
 def test_block_model_delay():
     """Test that block model estimation does not introduce delays."""
@@ -43,7 +43,7 @@ def test_block_model_delay():
         factor=0.1,  # Low regularization to ensure we catch the signal
         tr=tr,
         te=te,
-        eigen_thr=0.001  # Low threshold
+        eigen_thr=0.001,  # Low threshold
     )
 
     # Check onsets
@@ -56,16 +56,18 @@ def test_block_model_delay():
         if np.any(np.abs(est_onsets - true_onset) <= 1):
             matched_onsets += 1
 
-    assert matched_onsets == len(true_onsets), (
-        f"Failed to recover all onsets. True: {true_onsets}, Est: {est_onsets}"
-    )
+    assert matched_onsets == len(
+        true_onsets
+    ), f"Failed to recover all onsets. True: {true_onsets}, Est: {est_onsets}"
 
     # Check that we don't have too many false positives (dense signal)
     # The bug caused the signal to be dense (block-like) instead of sparse (innovation-like)
     # With noise, we might get some smearing, but it shouldn't be a full block (approx 40 points)
-    assert len(est_onsets) < 30, (
-        f"Estimated signal is too dense, likely block-like instead of innovation-like. Non-zeros: {len(est_onsets)}"
+    error_msg = (
+        "Estimated signal is too dense, likely block-like instead of innovation-like. "
+        f"Non-zeros: {len(est_onsets)}"
     )
+    assert len(est_onsets) < 30, error_msg
 
     # Check reconstruction MSE
     y_fitted = np.dot(hrf_block, S_est)
@@ -74,4 +76,5 @@ def test_block_model_delay():
 
     # MSE should be comparable to noise level
     # Note: Regularization introduces bias, so MSE will be higher than noise variance (0.0001)
-    assert mse < 0.02, f"MSE is too high: {mse}"
+    error_msg = f"MSE is too high: {mse}"
+    assert mse < 0.02, error_msg
