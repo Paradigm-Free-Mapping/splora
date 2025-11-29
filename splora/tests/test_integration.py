@@ -52,6 +52,13 @@ def test_integration_single_echo(skip_integration):
     for file in single_echo_files:
         assert file in files
 
+    # Check call.sh content
+    with open(os.path.join(data_dir, "single_echo", "call.sh"), "r") as f:
+        call_cmd = f.read()
+    assert "splora -i" in call_cmd
+    assert f'"{args[1]}"' in call_cmd
+    assert f'-d "{os.path.abspath(os.path.join(data_dir, "single_echo"))}"' in call_cmd
+
     logfile = [i for i in files if "splora_" in i]
     assert logfile[0] in files
 
@@ -102,6 +109,13 @@ def test_integration_multi_echo(skip_integration):
     files = os.listdir(os.path.join(data_dir, "multi_echo"))
     for file in multi_echo_files:
         assert file in files
+
+    # Check call.sh content
+    with open(os.path.join(data_dir, "multi_echo", "call.sh"), "r") as f:
+        call_cmd = f.read()
+    assert "splora -i" in call_cmd
+    assert f'"{data[0]}" "{data[1]}"' in call_cmd
+    assert f'-d "{os.path.abspath(os.path.join(data_dir, "multi_echo"))}"' in call_cmd
 
     logfile = [i for i in files if "splora_" in i]
     assert logfile[0] in files

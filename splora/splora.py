@@ -92,10 +92,24 @@ def splora(
     """
     if te is None:
         te = [0]
-    data_str = str(data_filename).strip("[]")
-    te_str = str(te).strip("[]")
-    arguments = f"-i {data_str} -m {mask_filename} -o {output_filename} -tr {tr} "
-    arguments += f"-d {out_dir} -te {te_str} -eigthr {eigthr} -group {group} -crit {lambda_crit} "
+
+    # Generate output directory if it doesn't exist
+    out_dir = op.abspath(out_dir)
+    os.makedirs(out_dir, exist_ok=True)
+
+    # Fix: Ensure -i is followed by each quoted filename as a separate argument
+    if isinstance(data_filename, list):
+        i_args = " ".join([f'"{x}"' for x in data_filename])
+    else:
+        i_args = f'"{data_filename}"'
+
+    if isinstance(te, list):
+        te_str = " ".join([str(x) for x in te])
+    else:
+        te_str = str(te)
+
+    arguments = f"-i {i_args} -m \"{mask_filename}\" -o \"{output_filename}\" -tr {tr} "
+    arguments += f"-d \"{out_dir}\" -te {te_str} -eigthr {eigthr} -group {group} -crit {lambda_crit} "
     arguments += f"-factor {factor} -jobs {jobs} -lambda_echo {lambda_echo} "
     arguments += f"-max_iter {max_iter} -min_iter {min_iter} "
     if do_stability_selection:
@@ -111,11 +125,6 @@ def splora(
     if quiet:
         arguments += "-quiet"
     command_str = f"splora {arguments}"
-
-    # Generate output directory if it doesn't exist
-    out_dir = op.abspath(out_dir)
-    if not op.isdir(out_dir):
-        os.mkdir(out_dir)
 
     with open(os.path.join(out_dir, "call.sh"), "w") as command_file:
         command_file.write(command_str)
