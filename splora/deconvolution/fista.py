@@ -3,8 +3,7 @@
 import logging
 
 import numpy as np
-from pySPFM.deconvolution.debiasing import debiasing_block, debiasing_spike
-from pySPFM.deconvolution.hrf_generator import HRFMatrix
+from pySPFM.deconvolution.debiasing import debiasing_spike
 from pySPFM.deconvolution.select_lambda import select_lambda
 from scipy import linalg
 
@@ -193,7 +192,10 @@ def fista(
         LGR.info(f"Iteration {num_iter + 1}/{max_iter}")
 
         if not pfm_only:
-            data_fidelity = A.copy() - S_fitts
+            if block_model:
+                data_fidelity = y - S_fitts - y_fista_L
+            else:
+                data_fidelity = A.copy() - S_fitts
 
         # Save results from previous iteration
         S_old = S.copy()
@@ -220,7 +222,10 @@ def fista(
                 keep_diff = np.where(St_diff >= eigen_thr)[0]
 
                 # Use first difference above the threshold as the number of low-rank components.
-                keep_idx = keep_diff[0]
+                if keep_diff.size > 0:
+                    keep_idx = keep_diff[0]
+                else:
+                    keep_idx = 0  # fallback: keep at least one component
 
                 LGR.info(f"{keep_idx+1} low-rank components found")
 
@@ -231,7 +236,10 @@ def fista(
                 data_fidelity = y - L
             else:
                 L = np.dot(np.dot(Ut, np.diag(St)), Vt)
-                data_fidelity = A - L
+                if block_model:
+                    data_fidelity = y - L - S_fitts
+                else:
+                    data_fidelity = A - L
 
         if pfm_only:
             S_fidelity = v - np.dot(hrf_cov, y_ista_S)
@@ -243,9 +251,12 @@ def fista(
             else:
                 # Single-echo: project data_fidelity through hrf.T
                 # This handles both full data and subsampled data cases
-                S_fidelity = np.dot(hrf_trans, data_fidelity) - np.dot(
-                    hrf_cov, y_ista_S
-                )
+                if block_model:
+                    S_fidelity = np.dot(hrf_trans, data_fidelity)
+                else:
+                    S_fidelity = np.dot(hrf_trans, data_fidelity) - np.dot(
+                        hrf_cov, y_ista_S
+                    )
 
         z_ista_S = y_ista_S + c_ist * S_fidelity
 
@@ -260,14 +271,8 @@ def fista(
         #  Perform debiasing to have both S and L on the same amplitude scale
         if not pfm_only:
             if block_model:
-                if num_iter == 0:
-                    hrf_obj = HRFMatrix(te=te, block=False)
-                    hrf_norm = hrf_obj.generate_hrf(tr=tr, n_scans=nscans).hrf_
-
-                S_spike = debiasing_block(
-                    hrf=hrf_norm, y=y, estimates_matrix=S, n_jobs=jobs
-                )
-                S_fitts = np.dot(hrf_norm, S_spike)
+                S_spike = S
+                S_fitts = np.dot(hrf, S)
             else:
                 S, S_fitts = debiasing_spike(
                     hrf=hrf, y=y, estimates_matrix=S, n_jobs=jobs
@@ -277,7 +282,7 @@ def fista(
             S_spike = S
             S_fitts = np.dot(hrf, S)
 
-        if not pfm_only:
+        if not pfm_only and not block_model:
             A = y_ista_A + np.dot(hrf, S_spike - y_ista_S) + (L - y_ista_L)
 
         t_fista_old = t_fista
