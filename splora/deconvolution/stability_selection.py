@@ -1,4 +1,5 @@
 """Stability selection for the deconvolution problem."""
+
 import logging
 import subprocess
 import time
@@ -7,6 +8,53 @@ from os.path import join as opj
 import numpy as np
 
 LGR = logging.getLogger("GENERAL")
+
+
+def subsample(nscans, mode, nTE):
+    """Subsample the data for stability selection.
+
+    Parameters
+    ----------
+    nscans : int
+        The number of scans.
+    mode : int
+        The subsampling mode.
+        Mode 1: different time points are selected across echoes.
+        Mode > 1: same time points are selected across echoes.
+    nTE : int
+        The number of echo times.
+
+    Returns
+    -------
+    subsample_idx : array
+        The indices of the subsampled data.
+    """
+    # Subsampling for Stability Selection
+    if mode == 1:  # different time points are selected across echoes
+        subsample_idx = np.sort(
+            np.random.choice(range(nscans), int(0.6 * nscans), replace=False)
+        )  # 60% of timepoints are kept
+        if nTE > 1:
+            for i in range(nTE - 1):
+                subsample_idx = np.concatenate(
+                    (
+                        subsample_idx,
+                        np.sort(
+                            np.random.choice(
+                                range((i + 1) * nscans, (i + 2) * nscans),
+                                int(0.6 * nscans),
+                                replace=False,
+                            )
+                        ),
+                    )
+                )
+
+    elif mode > 1:  # same time points are selected across echoes
+        subsample_idx = np.sort(
+            np.random.choice(range(nscans), int(0.6 * nscans), replace=False)
+        )  # 60% of timepoints are kept
+
+    return subsample_idx
 
 
 def bget(cmd):

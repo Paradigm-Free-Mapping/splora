@@ -1,9 +1,11 @@
 """Compute FISTA for a range of lambda values."""
+
 import os
 
 import numpy as np
 
 from splora.deconvolution.fista import fista
+from splora.deconvolution.stability_selection import subsample
 
 # Get variables from environment variables
 lambda_values = os.getenv("LAMBDAS")
@@ -39,49 +41,6 @@ print(f"jobs: {jobs}")
 print(f"n_sur: {n_sur}")
 print(f"temp: {temp}")
 print(f"nscans: {nscans}")
-
-
-def subsample(nscans, mode, nTE):
-    """Subsample the data.
-
-    Parameters
-    ----------
-    nscans : int
-        The number of scans.
-    mode : int
-        The subsampling mode.
-    nTE : int
-        The number of echo times.
-
-    Returns
-    -------
-    subsample_idx : array
-        The indices of the subsampled data.
-    """
-    # Subsampling for Stability Selection
-    if mode == 1:  # different time points are selected across echoes
-        subsample_idx = np.sort(
-            np.random.choice(range(nscans), int(0.6 * nscans), 0)
-        )  # 60% of timepoints are kept
-        if nTE > 1:
-            for i in range(nTE - 1):
-                subsample_idx = np.concatenate(
-                    (
-                        subsample_idx,
-                        np.sort(
-                            np.random.choice(
-                                range((i + 1) * nscans, (i + 2) * nscans), int(0.6 * nscans), 0
-                            )
-                        ),
-                    )
-                )
-
-    elif mode > 1:  # same time points are selected across echoes
-        subsample_idx = np.sort(
-            np.random.choice(range(nscans), int(0.6 * nscans), 0)
-        )  # 60% of timepoints are kept
-
-    return subsample_idx
 
 
 # Subsample the data
