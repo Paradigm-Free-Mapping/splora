@@ -67,9 +67,9 @@ jobs:
           name: Install AFNI
           command: |
             sudo apt-get update
-            sudo apt-get install -y curl tcsh libxp6 libxpm4 libxmu6 gsl-bin netpbm xvfb
+            sudo apt-get install -y curl tcsh libglu1-mesa libxm4 gsl-bin netpbm xvfb libjpeg62
             curl -O https://afni.nimh.nih.gov/pub/dist/bin/misc/@update.afni.binaries
-            tcsh @update.afni.binaries -package linux_ubuntu_16_64 -do_extras -bindir ~/abin
+            tcsh @update.afni.binaries -package linux_ubuntu_22_64 -do_extras -bindir ~/abin
             echo 'export PATH=$HOME/abin:$PATH' >> $BASH_ENV
       - run:
           name: Install uv
