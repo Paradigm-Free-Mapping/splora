@@ -1,8 +1,9 @@
 """Deconvolution init."""
 
+from pySPFM.deconvolution.debiasing import debiasing_block, debiasing_spike
+from pySPFM.deconvolution.hrf_generator import HRFMatrix
+
 from splora.deconvolution import fista, stability_selection
-from splora.deconvolution.debiasing import debiasing_block, debiasing_spike
-from splora.deconvolution.hrf_matrix import HRFMatrix
 
 __all__ = [
     "fista",

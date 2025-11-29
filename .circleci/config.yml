@@ -1,186 +1,137 @@
 # Python CircleCI 2.1 configuration file
-#
-#
-#
 version: 2.1
+
 orbs:
-  codecov: codecov/codecov@1.0.5
+  codecov: codecov/codecov@4.0.1
+
 jobs:
-  makeenv_37:
+  lint:
     docker:
-      - image: nipype/nipype
-    working_directory: /tmp/src/splora
+      - image: cimg/python:3.10
+    working_directory: ~/src/splora
     steps:
       - checkout
-      - persist_to_workspace:
-          root: /tmp
-          paths:
-            - src/splora
-      - restore_cache:
-          key: conda-py37-v1-{{ checksum "setup.cfg" }}
       - run:
-          name: Generate environment
+          name: Install uv
           command: |
-            if [[ -e /opt/miniconda-latest/envs/splora_py37 ]]; then
-              echo "Restoring environment from cache"
-              source /etc/afni/afni.sh
-              source activate splora_py37
-            else
-              source /etc/afni/afni.sh
-              conda create -yq -n splora_py37 python=3.7
-              source activate splora_py37
-              pip install ".[test,doc]"
-            fi
-      - save_cache:
-          key: conda-py37-v1-{{ checksum "setup.cfg" }}
-          paths:
-            - /opt/miniconda-latest/envs/splora_py37
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            echo 'export PATH=$HOME/.local/bin:$PATH' >> $BASH_ENV
+      - run:
+          name: Create virtual environment and install dependencies
+          command: |
+            uv venv
+            uv sync --all-extras
+      - run:
+          name: Run linting
+          command: |
+            uv run ruff check splora
 
-  unittest_37:
+  unit_tests:
+    parameters:
+      python_version:
+        type: string
     docker:
-      - image: nipype/nipype
-    working_directory: /tmp/src/splora
+      - image: cimg/python:<< parameters.python_version >>
+    working_directory: ~/src/splora
     steps:
       - checkout
-      - restore_cache:
-          key: conda-py37-v1-{{ checksum "setup.cfg" }}
       - run:
-          name: Running unit tests
+          name: Install uv
           command: |
-            source /etc/afni/afni.sh
-            source activate splora_py37  # depends on makeenv_37
-            make unittest
-            mkdir /tmp/src/coverage
-            mv /tmp/src/splora/.coverage /tmp/src/coverage/.coverage.py37
-      - persist_to_workspace:
-          root: /tmp
-          paths:
-            - src/coverage/.coverage.py37
-
-  single_echo:
-    docker:
-      - image: nipype/nipype
-    working_directory: /tmp/src/splora
-    steps:
-      - checkout
-      - restore_cache:
-          key: conda-py37-v1-{{ checksum "setup.cfg" }}
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            echo 'export PATH=$HOME/.local/bin:$PATH' >> $BASH_ENV
       - run:
-          name: Running unit tests
+          name: Create virtual environment and install dependencies
           command: |
-            source /etc/afni/afni.sh
-            source activate splora_py37  # depends on makeenv_37
-            make single-echo
-            mkdir /tmp/src/coverage
-            mv /tmp/src/splora/.coverage /tmp/src/coverage/.coverage.py37
-      - persist_to_workspace:
-          root: /tmp
-          paths:
-            - src/coverage/.coverage.py37
-
-  multi_echo:
-    docker:
-      - image: nipype/nipype
-    working_directory: /tmp/src/splora
-    steps:
-      - checkout
-      - restore_cache:
-          key: conda-py37-v1-{{ checksum "setup.cfg" }}
+            uv venv
+            uv sync --all-extras
       - run:
-          name: Running unit tests
+          name: Run unit tests
           command: |
-            source /etc/afni/afni.sh
-            source activate splora_py37  # depends on makeenv_37
-            make multi-echo
-            mkdir /tmp/src/coverage
-            mv /tmp/src/splora/.coverage /tmp/src/coverage/.coverage.py37
-      - persist_to_workspace:
-          root: /tmp
-          paths:
-            - src/coverage/.coverage.py37
-
-  style_check:
-    docker:
-      - image: nipype/nipype
-    working_directory: /tmp/src/splora
-    steps:
-      - checkout
-      - restore_cache:
-          key: conda-py37-v1-{{ checksum "setup.cfg" }}
-      - run:
-          name: Style check
-          command: |
-            # apt-get install -yqq make
-            source activate splora_py37  # depends on makeenv37
-            make lint
+            uv run pytest --skipintegration --cov-append --cov-report=xml --cov=splora splora/
       - store_artifacts:
-          path: /tmp/data/lint
-
-  # build_docs:
-  #   working_directory: /tmp/src/splora
-  #   docker:
-  #     - image: nipype/nipype
-  #   steps:
-  #     - attach_workspace:  # get splora
-  #         at: /tmp
-  #     - restore_cache:  # load environment
-  #         key: conda-py37-v1-{{ checksum "setup.cfg" }}
-  #     - run:
-  #         name: Build documentation
-  #         command: |
-  #           # apt-get install -yqq make
-  #           source activate splora_py37  # depends on makeenv_37
-  #           pip install sphinx_rtd_theme
-  #           make -C docs html
-  #     - store_artifacts:
-  #         path: /tmp/src/splora/docs/_build/html
-
-  merge_coverage:
-    working_directory: /tmp/src/splora
-    docker:
-      - image: nipype/nipype
-    steps:
-      - attach_workspace:
-          at: /tmp
-      - checkout
-      - restore_cache:
-          key: conda-py37-v1-{{ checksum "setup.cfg" }}
-      - run:
-          name: Merge coverage files
-          command: |
-            # apt-get install -yqq curl
-            source activate splora_py37  # depends on makeenv37
-            cd /tmp/src/coverage/
-            coverage combine
-            coverage xml
-      - store_artifacts:
-          path: /tmp/src/coverage
+          path: coverage.xml
       - codecov/upload:
-          file: /tmp/src/coverage/coverage.xml
+          file: coverage.xml
+
+  integration_tests:
+    parameters:
+      python_version:
+        type: string
+    docker:
+      - image: cimg/python:<< parameters.python_version >>
+    working_directory: ~/src/splora
+    steps:
+      - checkout
+      - run:
+          name: Install AFNI
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y curl tcsh libglu1-mesa libxm4 gsl-bin netpbm xvfb libjpeg62
+            curl -O https://afni.nimh.nih.gov/pub/dist/bin/misc/@update.afni.binaries
+            tcsh @update.afni.binaries -package linux_ubuntu_24_64 -do_extras -bindir ~/abin
+            echo 'export PATH=$HOME/abin:$PATH' >> $BASH_ENV
+      - run:
+          name: Install uv
+          command: |
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            echo 'export PATH=$HOME/.local/bin:$PATH' >> $BASH_ENV
+      - run:
+          name: Create virtual environment and install dependencies
+          command: |
+            uv venv
+            uv sync --all-extras
+      - run:
+          name: Run integration tests
+          command: |
+            uv run pytest --cov-append --cov-report=xml --cov=splora splora/tests/test_integration.py
+      - store_artifacts:
+          path: coverage.xml
+      - codecov/upload:
+          file: coverage.xml
 
 workflows:
-  version: 2.1
+  version: 2
   build_test:
     jobs:
-      - makeenv_37
-      - unittest_37:
+      - lint
+      - unit_tests:
+          name: unit-py310
+          python_version: "3.10"
           requires:
-            - makeenv_37
-      - single_echo:
+            - lint
+      - unit_tests:
+          name: unit-py311
+          python_version: "3.11"
           requires:
-            - makeenv_37
-      - multi_echo:
+            - lint
+      - unit_tests:
+          name: unit-py312
+          python_version: "3.12"
           requires:
-            - makeenv_37
-      - style_check:
+            - lint
+      - unit_tests:
+          name: unit-py313
+          python_version: "3.13"
           requires:
-            - makeenv_37
-      # - build_docs:
-      #     requires:
-      #       - makeenv_37
-      - merge_coverage:
+            - lint
+      - integration_tests:
+          name: integration-py310
+          python_version: "3.10"
           requires:
-            - unittest_37
-            - single_echo
-            - multi_echo
-            - style_check
+            - lint
+      - integration_tests:
+          name: integration-py311
+          python_version: "3.11"
+          requires:
+            - lint
+      - integration_tests:
+          name: integration-py312
+          python_version: "3.12"
+          requires:
+            - lint
+      - integration_tests:
+          name: integration-py313
+          python_version: "3.13"
+          requires:
+            - lint

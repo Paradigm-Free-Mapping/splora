@@ -1,4 +1,5 @@
 """Main."""
+
 import datetime
 import logging
 import os
@@ -6,12 +7,13 @@ import sys
 from os import path as op
 
 import numpy as np
+from pySPFM.deconvolution.debiasing import debiasing_block, debiasing_spike
+from pySPFM.deconvolution.hrf_generator import HRFMatrix
+from pySPFM.deconvolution.select_lambda import select_lambda
 
 from splora import utils
 from splora.cli.run import _get_parser
 from splora.deconvolution import fista, stability_selection
-from splora.deconvolution.debiasing import debiasing_block, debiasing_spike
-from splora.deconvolution.hrf_matrix import HRFMatrix
 from splora.io import read_data, write_data
 
 LGR = logging.getLogger("GENERAL")
@@ -24,7 +26,7 @@ def splora(
     output_filename,
     tr,
     out_dir,
-    te=[0],
+    te=None,
     eigthr=0.1,
     group=0,
     do_debias=False,
@@ -34,6 +36,8 @@ def splora(
     block_model=False,
     jobs=4,
     lambda_echo=-1,
+    max_iter=100,
+    min_iter=10,
     do_stability_selection=False,
     saved_data=False,
     debug=False,
@@ -76,6 +80,10 @@ def splora(
     lambda_echo : int, optional
         Index of echo to use for lambda selection, by default -1
         If -1, the lambda is selected from the last of all echoes.
+    max_iter : int, optional
+        Maximum number of iterations for FISTA, by default 100
+    min_iter : int, optional
+        Minimum number of iterations for FISTA, by default 10
     do_stability_selection : bool, optional
         Whether to perform stability selection, by default False
     saved_data : bool, optional
@@ -85,15 +93,18 @@ def splora(
     quiet : :obj:`bool`, optional
         If True, suppresses logging/LGRing of messages. Default is False.
     """
+    if te is None:
+        te = [0]
     data_str = str(data_filename).strip("[]")
     te_str = str(te).strip("[]")
     arguments = f"-i {data_str} -m {mask_filename} -o {output_filename} -tr {tr} "
     arguments += f"-d {out_dir} -te {te_str} -eigthr {eigthr} -group {group} -crit {lambda_crit} "
     arguments += f"-factor {factor} -jobs {jobs} -lambda_echo {lambda_echo} "
+    arguments += f"-max_iter {max_iter} -min_iter {min_iter} "
     if do_stability_selection:
         arguments += "-stability "
     if saved_data:
-        arguments += "-saved_data "
+        arguments += "-saved "
     if do_debias:
         arguments += "--debias "
     if pfm_only:
@@ -148,20 +159,21 @@ def splora(
             data_filename = data_filename[0].split(" ")
 
         for te_idx in range(n_te):
-            data_temp, data_header, mask_img = read_data(data_filename[te_idx], mask_filename)
+            data_temp, data_header, mask_img = read_data(
+                data_filename[te_idx], mask_filename
+            )
             if te_idx == 0:
                 data_masked = data_temp
                 nscans = data_temp.shape[0]
             else:
-                # data_temp, _, _, _ = read_data(data_filename[te_idx], mask_filename, mask_idxs)
                 data_masked = np.concatenate((data_masked, data_temp), axis=0)
 
             LGR.info(f"{te_idx + 1}/{n_te} echoes...")
 
     LGR.info("Data read.")
 
-    hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=block_model)
-    hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
+    hrf_obj = HRFMatrix(te=te, block=block_model)
+    hrf_norm = hrf_obj.generate_hrf(tr=tr, n_scans=nscans).hrf_
 
     if pfm_only and do_stability_selection:
         # Generate temp directory in output directory to store stability selection results
@@ -194,6 +206,8 @@ def splora(
             hrf=hrf_norm,
             y=data_masked,
             n_te=n_te,
+            max_iter=max_iter,
+            min_iter=min_iter,
             lambda_crit=lambda_crit,
             factor=factor,
             eigen_thr=eigthr,
@@ -201,20 +215,22 @@ def splora(
             pfm_only=pfm_only,
             block_model=block_model,
             tr=tr,
+            te=te,
             jobs=jobs,
             lambda_echo=lambda_echo,
-            te=te,
         )
 
     # Debiasing
     if do_debias:
         if block_model:
-            hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=False)
-            hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
-            S_deb = debiasing_block(hrf=hrf_norm, y=data_masked, auc=S)
+            hrf_obj = HRFMatrix(te=te, block=False)
+            hrf_norm = hrf_obj.generate_hrf(tr=tr, n_scans=nscans).hrf_
+            S_deb = debiasing_block(hrf=hrf_norm, y=data_masked, estimates_matrix=S)
             S_fitts = np.dot(hrf_norm, S_deb)
         else:
-            S_deb, S_fitts = debiasing_spike(hrf=hrf_norm, y=data_masked, auc=S)
+            S_deb, S_fitts = debiasing_spike(
+                hrf=hrf_norm, y=data_masked, estimates_matrix=S
+            )
     else:
         S_deb = S
         S_fitts = np.dot(hrf_norm, S_deb)
@@ -223,11 +239,13 @@ def splora(
     # Save innovation signal
     if block_model:
         output_name = f"{output_filename}_innovation.nii.gz"
-        write_data(S, os.path.join(out_dir, output_name), mask_img, data_header, command_str)
+        write_data(
+            S, os.path.join(out_dir, output_name), mask_img, data_header, command_str
+        )
 
         if not do_debias:
-            hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=False)
-            hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
+            hrf_obj = HRFMatrix(te=te, block=False)
+            hrf_norm = hrf_obj.generate_hrf(tr=tr, n_scans=nscans).hrf_
             S_deb = np.dot(np.tril(np.ones(nscans)), S_deb)
             S_fitts = np.dot(hrf_norm, S_deb)
 
@@ -236,7 +254,9 @@ def splora(
         output_name = f"{output_filename}_beta.nii.gz"
     elif n_te > 1:
         output_name = f"{output_filename}_DR2.nii.gz"
-    write_data(S_deb, os.path.join(out_dir, output_name), mask_img, data_header, command_str)
+    write_data(
+        S_deb, os.path.join(out_dir, output_name), mask_img, data_header, command_str
+    )
 
     if n_te == 1:
         output_name = f"{output_filename}_fitts.nii.gz"
@@ -309,7 +329,7 @@ def splora(
             y_echo = data_masked[:nscans, :]
         else:
             y_echo = data_masked[te_idx * nscans : (te_idx + 1) * nscans, :]
-        _, _, noise_estimate = fista.select_lambda(hrf=hrf_norm, y=y_echo)
+        _, _, noise_estimate = select_lambda(hrf=hrf_norm, y=y_echo)
         write_data(
             np.expand_dims(noise_estimate, axis=0),
             os.path.join(out_dir, output_name),

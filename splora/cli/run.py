@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Parser for splora."""
 
 
@@ -145,6 +144,22 @@ def _get_parser():
         default=-1,
     )
     optional.add_argument(
+        "-max_iter",
+        "--max_iter",
+        dest="max_iter",
+        type=int,
+        help="Maximum number of iterations for FISTA (default = 100).",
+        default=100,
+    )
+    optional.add_argument(
+        "-min_iter",
+        "--min_iter",
+        dest="min_iter",
+        type=int,
+        help="Minimum number of iterations for FISTA (default = 10).",
+        default=10,
+    )
+    optional.add_argument(
         "-stability",
         "--stability_selection",
         dest="do_stability_selection",
@@ -178,7 +193,9 @@ def _get_parser():
         action="store_true",
         default=False,
     )
-    optional.add_argument("-v", "--version", action="version", version=("%(prog)s " + __version__))
+    optional.add_argument(
+        "-v", "--version", action="version", version=("%(prog)s " + __version__)
+    )
 
     parser._action_groups.append(optional)
 

@@ -1,13 +1,12 @@
-"""FISTA solver for PFM."""
+"""FISTA solver for Low-Rank and Sparse PFM."""
+
 import logging
 
 import numpy as np
-from pywt import wavedec
+from pySPFM.deconvolution.debiasing import debiasing_block, debiasing_spike
+from pySPFM.deconvolution.hrf_generator import HRFMatrix
+from pySPFM.deconvolution.select_lambda import select_lambda
 from scipy import linalg
-from scipy.stats import median_abs_deviation
-
-from splora.deconvolution.debiasing import debiasing_block, debiasing_spike
-from splora.deconvolution.hrf_matrix import HRFMatrix
 
 LGR = logging.getLogger("GENERAL")
 RefLGR = logging.getLogger("REFERENCES")
@@ -61,11 +60,15 @@ def proximal_operator_mixed_norm(y, thr, rho_val=0.8, groups="space"):
 
     # Second parameter of proximal operator
     if groups == "space":
-        foo = np.sum(np.maximum(np.zeros(y.shape), np.abs(y) - thr * rho_val) ** 2, axis=1)
+        foo = np.sum(
+            np.maximum(np.zeros(y.shape), np.abs(y) - thr * rho_val) ** 2, axis=1
+        )
         foo = foo.reshape(len(foo), 1)
         foo = np.dot(foo, np.ones((1, y.shape[1])))
     else:
-        foo = np.sum(np.maximum(np.zeros(y.shape), np.abs(y) - thr * rho_val) ** 2, axis=0)
+        foo = np.sum(
+            np.maximum(np.zeros(y.shape), np.abs(y) - thr * rho_val) ** 2, axis=0
+        )
         foo = foo.reshape(1, len(foo))
         foo = np.dot(np.ones((y.shape[0], 1), foo))
 
@@ -79,72 +82,6 @@ def proximal_operator_mixed_norm(y, thr, rho_val=0.8, groups="space"):
 
     # Return result
     return x
-
-
-def select_lambda(hrf, y, criteria="mad_update", factor=1, pcg=0.7, lambda_echo=-1):
-    """Criteria to select regularization parameter lambda.
-
-    Parameters
-    ----------
-    hrf : (E x T) array_like
-        Matrix containing shifted HRFs in its columns. E stands for the number of volumes times
-        the number of echo-times.
-    y : (T x S) array_like
-        Matrix with fMRI data provided to splora.
-    criteria : str, optional
-        Criteria to select regularization parameter lambda, by default "mad_update"
-    factor : int, optional
-        Factor by which to multiply the value of lambda, by default 1
-        Only used when "factor" criteria is selected.
-    pcg : str, optional
-        Percentage of maximum lambda possible to use, by default "0.7"
-        Only used when "pcg" criteria is selected.
-
-    Returns
-    -------
-    lambda_selection : array_like
-        Value of the regularization parameter lambda for each voxel.
-    update_lambda : bool
-        Whether to update lambda after each iteration until it converges to the MAD estimate
-        of the noise.
-    noise_estimate : array_like
-        MAD estimate of the noise.
-    """
-    update_lambda = False
-    nt = hrf.shape[1]
-
-    # Use last echo to estimate noise
-    if hrf.shape[0] > nt:
-        if lambda_echo == -1:
-            y = y[-nt:, :]
-        else:
-            y = y[(lambda_echo - 1) * nt : lambda_echo * nt, :]
-
-    _, cD1 = wavedec(y, "db3", level=1, axis=0)
-    noise_estimate = median_abs_deviation(cD1) / 0.6745  # 0.8095
-
-    if criteria == "mad":
-        lambda_selection = noise_estimate
-    elif criteria == "mad_update":
-        lambda_selection = noise_estimate
-        update_lambda = True
-    elif criteria == "ut":
-        lambda_selection = noise_estimate * np.sqrt(2 * np.log10(nt))
-    elif criteria == "lut":
-        lambda_selection = noise_estimate * np.sqrt(
-            2 * np.log10(nt) - np.log10(1 + 4 * np.log10(nt))
-        )
-    elif criteria == "factor":
-        lambda_selection = noise_estimate * factor
-    elif criteria == "pcg":
-        max_lambda = np.mean(abs(np.dot(hrf.T, y)), axis=0)
-        lambda_selection = max_lambda * pcg
-    elif criteria == "eigval":
-        random_signal = np.random.normal(loc=0.0, scale=np.mean(noise_estimate), size=y.shape)
-        s = np.linalg.svd(random_signal, compute_uv=False)
-        lambda_selection = s[0]
-
-    return lambda_selection, update_lambda, noise_estimate
 
 
 def fista(
@@ -164,9 +101,9 @@ def fista(
     out_dir=None,
     block_model=False,
     tr=2,
+    te=None,
     jobs=4,
     lambda_echo=-1,
-    te=[0],
 ):
     """Solve inverse problem with FISTA.
 
@@ -179,6 +116,9 @@ def fista(
         Matrix with fMRI data provided to splora.
     n_te : int
         Number of echo-times provided.
+    lambd : array_like, optional
+        Regularization parameter lambda for each voxel, by default None.
+        If None, lambda is selected based on lambda_crit.
     max_iter : int, optional
         Maximum number of iterations for FISTA, by default 100
     min_iter : int, optional
@@ -200,7 +140,7 @@ def fista(
     pfm_only : boolean, optional
         Whether PFM is run with original formulation, i.e., no low-rank, by default False
     te : list, optional
-        Echo times, by default [0]
+        Echo times, by default [1]
 
     Returns
     -------
@@ -212,6 +152,8 @@ def fista(
     eig_maps : (S x ) aray_like
         Spatial maps of the estimated low-rank components.
     """
+    if te is None:
+        te = [1]
     nvoxels = y.shape[1]
     nscans = hrf.shape[1]
 
@@ -230,7 +172,6 @@ def fista(
     else:
         L = np.zeros((n_te * nscans, nvoxels))
     A = y.copy()
-    # data_fidelity = y - y_fista_L
 
     keep_idx = 0
     t_fista = 1
@@ -239,13 +180,11 @@ def fista(
     # Select lambda for each voxel based on criteria if no lambda is given
     if lambd is None:
         lambda_S, update_lambda, noise_estimate = select_lambda(
-            hrf, y, factor=factor, criteria=lambda_crit, lambda_echo=lambda_echo
+            hrf, y, factor=factor, criterion=lambda_crit, lambda_echo=lambda_echo
         )
     else:
         lambda_S = lambd
         noise_estimate = np.zeros(nvoxels)
-
-    # LGR.info(f"Selected lambda is {lambda_S}")
 
     if precision is None and update_lambda:
         precision = noise_estimate / 100000
@@ -283,13 +222,6 @@ def fista(
 
                 # Use first difference above the threshold as the number of low-rank components.
                 keep_idx = keep_diff[0]
-                # diff_old = -1
-                # for i in range(len(keep_diff)):
-                #     if (keep_diff[i] - diff_old) == 1:
-                #         keep_idx = keep_diff[i] + 1
-                #     else:
-                #         break
-                #     diff_old = keep_diff[i]
 
                 LGR.info(f"{keep_idx+1} low-rank components found")
 
@@ -314,27 +246,31 @@ def fista(
 
         # Estimate S
         if group > 0:
-            S = proximal_operator_mixed_norm(z_ista_S, c_ist * lambda_S, rho_val=(1 - group))
+            S = proximal_operator_mixed_norm(
+                z_ista_S, c_ist * lambda_S, rho_val=(1 - group)
+            )
         else:
             S = proximal_operator_lasso(z_ista_S, c_ist * lambda_S)
 
-        #  Perform debiasing to have both S and L on the same amplitude scale
+        #  Perform debiasing to have both S and L on the same amplitude scale
         if not pfm_only:
             if block_model:
                 if num_iter == 0:
-                    hrf_obj = HRFMatrix(TR=tr, nscans=nscans, TE=te, block=False)
-                    hrf_norm = hrf_obj.generate_hrf().X_hrf_norm
+                    hrf_obj = HRFMatrix(te=te, block=False)
+                    hrf_norm = hrf_obj.generate_hrf(tr=tr, n_scans=nscans).hrf_
 
-                S_spike = debiasing_block(hrf=hrf_norm, y=y, auc=S, progress_bar=False, jobs=jobs)
+                S_spike = debiasing_block(
+                    hrf=hrf_norm, y=y, estimates_matrix=S, n_jobs=jobs
+                )
                 S_fitts = np.dot(hrf_norm, S_spike)
             else:
-                S, S_fitts = debiasing_spike(hrf=hrf, y=y, auc=S, progress_bar=False, jobs=jobs)
+                S, S_fitts = debiasing_spike(
+                    hrf=hrf, y=y, estimates_matrix=S, n_jobs=jobs
+                )
                 S_spike = S
         else:
             S_spike = S
             S_fitts = np.dot(hrf, S)
-
-        # breakpoint()
 
         if not pfm_only:
             A = y_ista_A + np.dot(hrf, S_spike - y_ista_S) + (L - y_ista_L)
@@ -347,7 +283,7 @@ def fista(
         y_fista_A = A + (A - A_old) * (t_fista_old - 1) / t_fista
 
         # Residuals
-        # nv = np.sqrt(np.sum((S_fitts + L - y) ** 2, axis=0) / nscans)
+        nv = np.sqrt(np.sum((S_fitts + L - y) ** 2, axis=0) / nscans)
 
         # Convergence
         if num_iter >= min_iter:
@@ -359,14 +295,19 @@ def fista(
                     S[nonzero_idxs_rows, nonzero_idxs_cols]
                     - S_old[nonzero_idxs_rows, nonzero_idxs_cols]
                 )
-                convergence_criteria = np.abs(diff / S_old[nonzero_idxs_rows, nonzero_idxs_cols])
+                convergence_criteria = np.abs(
+                    diff / S_old[nonzero_idxs_rows, nonzero_idxs_cols]
+                )
 
                 if np.all(convergence_criteria <= tol):
                     break
             else:
-                # if any(abs(nv - noise_estimate) < precision) and lambda_crit == "mad_update":
-                # break
-                if not pfm_only and linalg.norm(A - A_old) < tol * linalg.norm(A_old):
+                if (
+                    any(abs(nv - noise_estimate) < precision)
+                    and lambda_crit == "mad_update"
+                ):
+                    break
+                elif not pfm_only and linalg.norm(A - A_old) < tol * linalg.norm(A_old):
                     break
                 else:
                     diff = (abs(S_old - S) < tol).flatten()

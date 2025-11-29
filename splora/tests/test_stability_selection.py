@@ -4,7 +4,6 @@ import os
 import tempfile
 
 import numpy as np
-import pytest
 
 from splora.deconvolution import stability_selection
 from splora.deconvolution.stability_selection import subsample
@@ -61,7 +60,6 @@ def test_lambda_value_calculation():
     """Test that lambda values are calculated correctly in stability_selection."""
     # Create minimal test data
     n_voxels = 5
-    n_scans = 160
     n_lambdas = 10
 
     # Use real hrf and y data
