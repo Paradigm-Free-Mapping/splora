@@ -2,6 +2,7 @@ name: Publish to PyPI
 on:
   release:
     types: [published]
+  workflow_dispatch: # Allows manual triggering from Actions tab
 
 jobs:
   build-publish:
@@ -42,6 +43,4 @@ jobs:
           ls -lh dist/
 
       - name: Publish package to PyPI
-        # Only publish to real PyPI on release
-        if: github.event_name == 'release'
         uses: pypa/gh-action-pypi-publish@release/v1

@@ -9,10 +9,10 @@ readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10"
 authors = [
-    { name = "Eneko Uruñuela", email = "e.urunuela@bcbl.eu" },
+    { name = "Eneko Uruñuela", email = "eneko.urunuela@ucalgary.ca" },
 ]
 maintainers = [
-    { name = "Eneko Uruñuela", email = "e.urunuela@bcbl.eu" },
+    { name = "Eneko Uruñuela", email = "eneko.urunuela@ucalgary.ca" },
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
